@@ -16,7 +16,7 @@ app = Flask(__name__)
 KNOWN_FACES_DIR = "static/faces"
 ATTENDANCE_CSV = f"Attendance/Attendance-{datetime.today().strftime('%m_%d_%y')}.csv"
 
-# Create directories if they don’t exist
+# Create directories if they don't exist
 os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
 os.makedirs("Attendance", exist_ok=True)
 
@@ -173,7 +173,7 @@ def register_user():
     user_dir = os.path.join(KNOWN_FACES_DIR, f"{username}_{user_id}")
     os.makedirs(user_dir, exist_ok=True)
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("/dev/video0")
     if not cap.isOpened():
         return render_template("home.html", message="Error: Could not access webcam!")
 
@@ -278,7 +278,7 @@ def start_attendance():
         known_face_encodings, known_face_names = [], []
         print("⚠️ No registered faces. Only detecting unknown users.")
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("/dev/video0")
     observed_faces = {}  # Track consistent recognition
 
     while True:
