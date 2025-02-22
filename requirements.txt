@@ -1,0 +1,8 @@
+opencv-python
+numpy
+face-recognition
+joblib
+pandas
+flask
+mtcnn
+tensorflow

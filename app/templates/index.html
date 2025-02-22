@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Scanner</title>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+        const scanInput = document.getElementById("scanInput");
+        scanInput.focus(); // Autofocus input field
+            
+        document.getElementById("registerForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+            fetch("/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    name: document.getElementById("name").value.trim(),
+                    user_id: document.getElementById("user_id").value.trim()
+                })
+            }).then(response => response.json()).then(data => {
+                alert(data.message || data.error);
+            });
+        });
+
+        // Listen for RFID scanner input
+        scanInput.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") { // Check if the scanner sends "Enter"
+                event.preventDefault(); // Prevent form submission
+
+                let user_id = scanInput.value.trim();
+
+                // Debugging Output
+                console.log("Scanned User ID:", user_id);
+
+                if (user_id.length > 0) {
+                    fetch("/scan", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: new URLSearchParams({ user_id: user_id })
+                    })
+                    .then(response => response.json())
+                    .then(data => alert(data.message || data.error));
+
+                    scanInput.value = ""; // Clear input field after scanning
+                } else {
+                    alert("Invalid scan! Please try again.");
+                    scanInput.value = "";
+                }
+            }
+        });
+    });
+
+    </script>
+</head>
+<body>
+    <h1>Card Scanner Attendance</h1>
+
+    <h2>Register User</h2>
+    <form id="registerForm">
+        <input type="text" id="name" placeholder="User Name" required>
+        <input type="text" id="user_id" placeholder="User ID" required>
+        <button type="submit">Register</button>
+    </form>
+
+    <h2>Scan for Attendance</h2>
+    <input type="text" id="scanInput" placeholder="Scan Card Here" autofocus>
+</body>
+</html>
