@@ -21,5 +21,5 @@ run:
 	smart-attendance-system
 
 push:
-	docker tag smart-attendance-system:latest 192.168.1.10:5000/smart-attendance-system:latest
-	docker push 192.168.1.10:5000/smart-attendance-system:latest
+	docker tag smart-attendance-system:latest asifmahmoud414/smart-attendance-system:v1.0.1
+	docker push asifmahmoud414/smart-attendance-system:v1.0.1

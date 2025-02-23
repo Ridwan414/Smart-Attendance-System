@@ -1,8 +1,8 @@
-# Use Python 3.8 as base image
-FROM python:3.8-slim
+# Builder stage
+FROM python:3.8-slim AS builder
 
-# Install system dependencies required for OpenCV and face_recognition
-RUN apt-get update && apt-get install -y \
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     libopenblas-dev \
@@ -11,36 +11,60 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-dev \
     libboost-python-dev \
     python3-dev \
-    python3-pip \
-    wget \
-    libv4l-dev \ 
+    libv4l-dev \
     libxvidcore-dev \
     libx264-dev \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
-
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
+# Set up virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application
-COPY src/ ./src/
+# Final stage
+FROM python:3.8-slim
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas0 \
+    liblapack3 \
+    libx11-6 \
+    libgtk-3-0 \
+    libboost-python-dev \
+    libv4l-0 \
+    libxvidcore4 \
+    libx264-dev \
+    ffmpeg \
+    libqt5gui5 \
+    libqt5core5a \
+    libqt5widgets5 \
+    libxcb-xinerama0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
 
 # Create necessary directories
 RUN mkdir -p static/faces Attendance
 
-# Expose port 5000 for Flask
-EXPOSE 5000
+# Copy application code
+COPY src/ ./src/
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_APP=src/app.py
-ENV DISPLAY=:0
+ENV PYTHONUNBUFFERED=1 \
+    FLASK_APP=src/app.py \
+    DISPLAY=:0
+
+# Expose port
+EXPOSE 5000
 
 # Run the application
 CMD ["python", "src/app.py"]
