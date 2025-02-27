@@ -210,11 +210,41 @@
                 background-color: rgba(51, 65, 85, 0.5);
             }
         }
+
+        .alert-dismissible {
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .alert.fade {
+            opacity: 0;
+        }
+
+        .alert.fade.show {
+            opacity: 1;
+        }
+
+        #rfidAttendanceStatus .alert {
+            padding: 0.5rem 1rem;
+            margin: 0;
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>Smart Attendance System <i class="material-icons">verified_user</i></h1>
+    </div>
+
+    <!-- Add this alert div at the top of the page, right after the header -->
+    <div id="rfidAttendanceAlert" class="alert alert-info alert-dismissible fade" style="display: none; position: sticky; top: 0; z-index: 1000;" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">Active...</span>
+            </div>
+            <strong>RFID Attendance Mode Active</strong>
+            <span class="ms-2">- Scan your ID card to mark attendance</span>
+        </div>
+        <div id="rfidAttendanceStatus" class="mt-2"></div>
+        <button type="button" class="btn-close" id="stopRfidAttendance"></button>
     </div>
 
     {% if success_mess %}
@@ -237,9 +267,9 @@
                             <a href="{{ url_for('start_attendance') }}" class="btn btn-scan">
                                 <i class="material-icons">face</i> Face Attendance
                             </a>
-                            <a href="{{ url_for('start_rfid_attendance') }}" class="btn btn-scan">
+                            <button class="btn btn-scan" id="startRfidAttendanceBtn">
                                 <i class="material-icons">credit_card</i> RFID Attendance
-                            </a>
+                            </button>
                         </div>
                         
                         <div class="table-responsive mt-4">
@@ -254,9 +284,9 @@
                                 </thead>
                                 <tbody>
                                     {% if attendance %}
-                                        {% for entry in attendance %}
+                                        {% for entry in attendance|reverse %}
                                             <tr>
-                                                <td>{{ loop.index }}</td>
+                                                <td>{{ attendance|length - loop.index0 }}</td>
                                                 <td>{{ entry["User ID"] }}</td>
                                                 <td>{{ entry["Name"] }}</td>
                                                 <td>{{ entry["Time"] }}</td>
@@ -452,7 +482,6 @@
                     registrationModal.show();
                 }
             } catch (error) {
-                console.error('Error:', error);
                 document.getElementById('registrationStatus').innerHTML = 
                     '<div class="alert alert-danger">Registration failed. Please try again.</div>';
                 registrationModal.show();
@@ -508,7 +537,6 @@
                         throw new Error(rfidData.error || "Failed to read RFID card");
                     }
 
-                    console.log("RFID Data received:", rfidData); // Debug log
 
                     // Register user with RFID
                     const registerResponse = await fetch("{{ url_for('register_rfid') }}", {
@@ -541,7 +569,6 @@
                     throw error;
                 }
             } catch (error) {
-                console.error('Error:', error);
                 document.getElementById('rfidStatus').innerHTML = 
                     `<div class="alert alert-danger">RFID registration failed: ${error.message}</div>`;
             }
@@ -569,7 +596,6 @@
                 
                 rfidOnlyModal.show();
             } catch (error) {
-                console.error('Error:', error);
                 document.getElementById('registrationStatus').innerHTML = 
                     '<div class="alert alert-danger">Failed to check RFID reader status.</div>';
                 registrationModal.show();
@@ -621,7 +647,6 @@
                         throw new Error(rfidData.error || "Failed to read RFID card");
                     }
 
-                    console.log("RFID Data received:", rfidData); // Debug log
 
                     // Register user with RFID
                     const registerResponse = await fetch("{{ url_for('register_rfid_only') }}", {
@@ -655,7 +680,6 @@
                     throw error;
                 }
             } catch (error) {
-                console.error('Error:', error);
                 rfidOnlyStatus.innerHTML = 
                     `<div class="alert alert-danger">RFID registration failed: ${error.message}</div>`;
             }
@@ -704,6 +728,130 @@
                 easing: 'easeOutQuad'
             });
         });
+
+        // RFID Attendance handling
+        const rfidAttendanceAlert = document.getElementById('rfidAttendanceAlert');
+        const rfidAttendanceBtn = document.getElementById('startRfidAttendanceBtn');
+        const rfidAttendanceStatus = document.getElementById('rfidAttendanceStatus');
+        const stopRfidAttendance = document.getElementById('stopRfidAttendance');
+        let isRfidAttendanceActive = false;
+
+        rfidAttendanceBtn.addEventListener('click', async () => {
+            try {
+                // Check if RFID reader is available
+                const rfidCheck = await fetch("{{ url_for('check_rfid_available') }}");
+                const rfidStatus = await rfidCheck.json();
+                
+                if (!rfidStatus.available) {
+                    document.getElementById('registrationStatus').innerHTML = 
+                        '<div class="alert alert-danger">No RFID reader detected. Please connect an RFID reader first.</div>';
+                    registrationModal.show();
+                    return;
+                }
+                
+                // Start RFID attendance mode
+                isRfidAttendanceActive = true;
+                rfidAttendanceAlert.style.display = 'block';
+                rfidAttendanceAlert.classList.add('show');
+                startRfidAttendanceMonitoring();
+                
+            } catch (error) {
+                document.getElementById('registrationStatus').innerHTML = 
+                    '<div class="alert alert-danger">Failed to start RFID attendance mode.</div>';
+                registrationModal.show();
+            }
+        });
+
+        stopRfidAttendance.addEventListener('click', () => {
+            isRfidAttendanceActive = false;
+            rfidAttendanceAlert.classList.remove('show');
+            setTimeout(() => {
+                rfidAttendanceAlert.style.display = 'none';
+                rfidAttendanceStatus.innerHTML = '';
+            }, 300);
+        });
+
+        // Update the updateAttendanceTable function
+        async function updateAttendanceTable() {
+            try {
+                const response = await fetch("{{ url_for('get_attendance') }}");
+                const data = await response.json();
+                
+                const tbody = document.querySelector('.attendance-table tbody');
+                if (data.attendance && data.attendance.length > 0) {
+                    // Reverse the attendance array to show latest entries first
+                    const reversedAttendance = [...data.attendance].reverse();
+                    tbody.innerHTML = reversedAttendance.map((entry, index) => `
+                        <tr>
+                            <td>${data.attendance.length - index}</td>
+                            <td>${entry["User ID"]}</td>
+                            <td>${entry["Name"]}</td>
+                            <td>${entry["Time"]}</td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="text-center">No attendance recorded yet.</td>
+                        </tr>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error updating attendance table:', error);
+            }
+        }
+
+        // Update the startRfidAttendanceMonitoring function
+        async function startRfidAttendanceMonitoring() {
+            try {
+                while (isRfidAttendanceActive) {
+                    // Read RFID card
+                    const response = await fetch("{{ url_for('read_rfid') }}");
+                    const rfidData = await response.json();
+
+                    if (rfidData.success) {
+                        // Mark attendance
+                        const attendanceResponse = await fetch("{{ url_for('rfid_scan') }}", {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                'rfid_id': rfidData.rfid_id
+                            })
+                        });
+
+                        const result = await attendanceResponse.json();
+                        
+                        if (result.error) {
+                            rfidAttendanceStatus.innerHTML = `
+                                <div class="alert alert-warning mb-0">
+                                    ${result.error}
+                                </div>`;
+                        } else {
+                            rfidAttendanceStatus.innerHTML = `
+                                <div class="alert alert-success mb-0">
+                                    ${result.message}
+                                </div>`;
+                            // Update attendance table without page refresh
+                            await updateAttendanceTable();
+                        }
+                    }
+
+                    // Wait a bit before next read
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } catch (error) {
+                rfidAttendanceStatus.innerHTML = `
+                    <div class="alert alert-danger mb-0">
+                        RFID attendance monitoring stopped: ${error.message}
+                    </div>`;
+                setTimeout(() => {
+                    isRfidAttendanceActive = false;
+                    rfidAttendanceAlert.classList.remove('show');
+                }, 2000);
+            }
+        }
     });
     </script>
 </body>

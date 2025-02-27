@@ -598,35 +598,72 @@ def read_rfid():
 def start_rfid_attendance():
     """Start RFID attendance monitoring"""
     try:
+        print("🔄 Starting RFID attendance mode...")
         while True:
             card_id = read_rfid_card(timeout=1)  # Short timeout for continuous reading
             if card_id:
-                print(f"Card detected: {card_id}")
+                print(f"💳 Card detected: {card_id}")
                 if card_id in rfid_users:
                     user_data = rfid_users[card_id]
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     
-                    with open(ATTENDANCE_CSV, mode="a", newline="") as file:
-                        writer = csv.writer(file)
-                        writer.writerow([user_data["user_id"], user_data["name"], timestamp])
+                    # Check if already marked attendance today
+                    with open(ATTENDANCE_CSV, mode="r") as file:
+                        reader = csv.reader(file)
+                        next(reader)  # Skip header
+                        already_marked = False
+                        for row in reader:
+                            if row[0] == user_data["user_id"]:  # Check User ID
+                                already_marked = True
+                                print(f"⚠️ {user_data['name']} already marked attendance today")
+                                break
                     
-                    print(f"✅ Attendance marked for {user_data['name']}")
+                    if not already_marked:
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        
+                        with open(ATTENDANCE_CSV, mode="a", newline="") as file:
+                            writer = csv.writer(file)
+                            writer.writerow([user_data["user_id"], user_data["name"], timestamp])
+                        
+                        print(f"✅ Attendance marked for {user_data['name']}")
                 else:
                     print("❌ Unknown RFID card")
                 
                 time.sleep(1)  # Prevent multiple reads of the same card
             
-            # Check for interrupt signal
-            if os.path.exists("stop_rfid_attendance"):
-                os.remove("stop_rfid_attendance")
+            # Check for ESC key press
+            if cv2.waitKey(1) & 0xFF == 27:  # 27 is ESC key
+                print("\n🛑 ESC pressed - stopping RFID attendance")
                 break
                 
     except KeyboardInterrupt:
         print("\n🛑 RFID attendance monitoring stopped")
     except Exception as e:
         print(f"❌ Error in RFID attendance: {e}")
+    finally:
+        cv2.destroyAllWindows()
     
     return redirect(url_for("home"))
+
+@app.route("/get_attendance")
+def get_attendance():
+    """Endpoint to get current attendance data"""
+    try:
+        if os.path.exists(ATTENDANCE_CSV):
+            df = pd.read_csv(ATTENDANCE_CSV)
+            return jsonify({
+                "success": True,
+                "attendance": df.to_dict(orient="records")
+            })
+        return jsonify({
+            "success": True,
+            "attendance": []
+        })
+    except Exception as e:
+        print(f"❌ Error getting attendance data: {e}")
+        return jsonify({
+            "success": False,
+            "error": "Failed to get attendance data"
+        })
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
