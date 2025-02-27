@@ -11,6 +11,7 @@ from mtcnn import MTCNN
 import csv
 import serial
 import serial.tools.list_ports
+import re
 
 
 app = Flask(__name__)
@@ -49,6 +50,86 @@ detector = MTCNN()
 # Face recognition threshold
 FACE_MATCH_THRESHOLD = 0.45  # Stricter threshold for higher accuracy
 
+# Add this after other global variables
+RFID_PORT = None  # Will store the RFID reader's serial port
+
+def init_rfid_reader():
+    """Initialize RFID reader connection"""
+    try:
+        # Look for USB devices that might be the RFID reader
+        ports = list(serial.tools.list_ports.comports())
+        for port in ports:
+            if ("AuthenTec" in port.description or 
+                "SYC ID&IC USB Reader" in port.description or 
+                "08FF:0009" in port.hwid.upper()):
+                return True
+                
+        # Alternative method: check if hidraw1 exists in /dev
+        if os.path.exists("/dev/hidraw1"):
+            return True
+            
+        return False
+    except Exception as e:
+        print(f"Error checking RFID reader: {e}")
+        return False
+
+def read_rfid_card(timeout=15):
+    """Read RFID card and return the ID"""
+    print(f"⌛ Waiting for RFID card (timeout: {timeout}s)...")
+    if not check_rfid_reader():
+        print("❌ No RFID reader detected")
+        return None
+    
+    # Open the HID device
+    try:
+        print("🔌 Opening RFID reader device...")
+        rfid_port = open("/dev/hidraw1", "rb")
+        print("✅ RFID reader opened successfully")
+    except Exception as e:
+        print(f"❌ Could not open RFID reader: {e}")
+        return None
+    
+    # Read loop
+    buffer = ""
+    start_time = time.time()
+    
+    try:
+        while (time.time() - start_time) < timeout:
+            # Read data from HID device
+            byte_data = rfid_port.read(8)
+            
+            if byte_data and any(b != 0 for b in byte_data):
+                print(f"📡 Raw data received: {byte_data}")
+                
+                # Extract the third byte (index 2) which contains the actual digit
+                if len(byte_data) > 2:
+                    digit_byte = byte_data[2]
+                    if 0x1E <= digit_byte <= 0x27:  # Map scan codes to digits
+                        # Convert scan code to actual digit (0x1E = '1', 0x1F = '2', etc.)
+                        digit = str(digit_byte - 0x1E + 1)
+                        if digit_byte == 0x27:  # Special case for '0'
+                            digit = '0'
+                        buffer += digit
+                        print(f"🔢 Current buffer: {buffer}")
+                
+                # Look for card ID pattern (sequence of digits)
+                if len(buffer) >= 10:  # Wait for complete card number
+                    print(f"💳 Found card ID: {buffer}")
+                    rfid_port.close()
+                    return buffer
+            
+            time.sleep(0.01)
+        
+        # Timeout reached
+        print("⏰ Timeout waiting for card")
+        return None
+            
+    except Exception as e:
+        print(f"❌ Error reading RFID card: {e}")
+        return None
+    finally:
+        print("🔌 Closing RFID reader")
+        rfid_port.close()
 
 # Function to load known faces
 def load_known_faces():
@@ -157,7 +238,9 @@ def load_rfid_users():
         reader = csv.reader(file)
         next(reader)  # Skip header
         for row in reader:
-            rfid_users[row[0]] = row[1]
+            if len(row) >= 3:  # Make sure we have all columns
+                rfid_id, user_id, name = row[0], row[1], row[2]
+                rfid_users[rfid_id] = {"user_id": user_id, "name": name}  # Store both user_id and name
 
 # Load RFID users at startup
 load_rfid_users()
@@ -362,39 +445,71 @@ def start_attendance():
 
 @app.route("/rfid/register", methods=["POST"])
 def register_rfid():
+    print("📝 Starting RFID registration...")
     user_id = request.form.get("user_id", "").strip()
     rfid_id = request.form.get("rfid_id", "").strip()
     name = request.form.get("name", "").strip()
 
+    print(f"Received data: user_id={user_id}, rfid_id={rfid_id}, name={name}")
+
     if not user_id or not name:
+        print("❌ Missing required fields")
         return jsonify({"error": "User ID and Name are required!"})
 
-    if user_id in rfid_users:
-        return jsonify({"error": "User ID already registered!"})
+    if not rfid_id:
+        print("❌ Missing RFID ID")
+        return jsonify({"error": "RFID ID is required!"})
 
-    with open(RFID_USER_CSV, mode="a", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow([rfid_id, user_id, name])
+    try:
+        # Check if RFID ID or User ID already exists
+        with open(RFID_USER_CSV, mode="r") as file:
+            reader = csv.reader(file)
+            next(reader)  # Skip header
+            for row in reader:
+                if len(row) >= 3:  # Ensure row has all required fields
+                    if row[0] == rfid_id:
+                        print(f"❌ RFID ID {rfid_id} already exists")
+                        return jsonify({"error": "This RFID card is already registered!"})
+                    if row[1] == user_id:
+                        print(f"❌ User ID {user_id} already exists")
+                        return jsonify({"error": "This User ID is already registered!"})
 
-    rfid_users[user_id] = name  # Update local dictionary
+        # Register new user
+        with open(RFID_USER_CSV, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([rfid_id, user_id, name])
+            print(f"✅ Successfully registered: {name} (ID: {user_id})")
 
-    return jsonify({"message": "User registered successfully!"})
+        # Update local dictionary
+        rfid_users[rfid_id] = {"user_id": user_id, "name": name}
+        print("✅ Local dictionary updated")
+
+        return jsonify({
+            "success": True,
+            "message": f"Registration successful for {name}!"
+        })
+    except Exception as e:
+        print(f"❌ Error during registration: {e}")
+        return jsonify({"error": f"Registration failed: {str(e)}"})
 
 @app.route("/rfid/scan", methods=["POST"])
 def rfid_scan():
-    user_id = request.form.get("user_id", "").strip()
+    rfid_id = request.form.get("rfid_id", "").strip()
     
-    if not user_id:
-        return jsonify({"error": "Invalid scan! User ID is empty."})
+    if not rfid_id:
+        return jsonify({"error": "Invalid scan! RFID ID is empty."})
 
+    if rfid_id not in rfid_users:
+        return jsonify({"error": "Unknown RFID card!"})
+
+    user_data = rfid_users[rfid_id]
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    name = rfid_users.get(user_id, "Unknown")
 
     with open(ATTENDANCE_CSV, mode="a", newline="") as file:
         writer = csv.writer(file)
-        writer.writerow([user_id, name, timestamp])
+        writer.writerow([user_data["user_id"], user_data["name"], timestamp])
 
-    return jsonify({"message": f"Attendance recorded for {name}!"})
+    return jsonify({"message": f"Attendance recorded for {user_data['name']}!"})
 
 @app.route("/check_rfid", methods=["GET"])
 def check_rfid_available():
@@ -406,47 +521,112 @@ def check_rfid_available():
 
 def check_rfid_reader():
     """Check if RFID reader is connected via USB"""
-    # try:
-    #     # Look for USB devices that might be the RFID reader
-    #     ports = list(serial.tools.list_ports.comports())
-    #     for port in ports:
-    #         if "USB" in port.description:  # Modify this condition based on your RFID reader
-    #             return True
-    #     return False
-    # except:
-    #     return False
-    return True
+    try:
+        return init_rfid_reader()
+    except:
+        return False
 
 @app.route("/rfid/register_only", methods=["POST"])
 def register_rfid_only():
+    print("📝 Starting RFID-only registration...")
     user_id = request.form.get("user_id", "").strip()
     rfid_id = request.form.get("rfid_id", "").strip()
     name = request.form.get("name", "").strip()
 
+    print(f"Received data: user_id={user_id}, rfid_id={rfid_id}, name={name}")
+
     if not user_id or not name or not rfid_id:
         return jsonify({"error": "User ID, Name, and RFID ID are required!"})
 
-    # Check if RFID ID already exists
-    with open(RFID_USER_CSV, mode="r") as file:
-        reader = csv.reader(file)
-        next(reader)  # Skip header
-        for row in reader:
-            if row[0] == rfid_id:
-                return jsonify({"error": "RFID card already registered!"})
-            if row[1] == user_id:
-                return jsonify({"error": "User ID already registered!"})
+    try:
+        # Check if RFID ID or User ID already exists
+        with open(RFID_USER_CSV, mode="r") as file:
+            reader = csv.reader(file)
+            next(reader)  # Skip header
+            for row in reader:
+                if len(row) >= 3:  # Ensure row has all required fields
+                    if row[0] == rfid_id:
+                        print(f"❌ RFID ID {rfid_id} already exists")
+                        return jsonify({"error": "This RFID card is already registered!"})
+                    if row[1] == user_id:
+                        print(f"❌ User ID {user_id} already exists")
+                        return jsonify({"error": "This User ID is already registered!"})
 
-    # Register new user
-    with open(RFID_USER_CSV, mode="a", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow([rfid_id, user_id, name])
+        # Register new user
+        with open(RFID_USER_CSV, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([rfid_id, user_id, name])
+            print(f"✅ Successfully registered: {name} (ID: {user_id})")
 
-    rfid_users[user_id] = name  # Update local dictionary
+        # Update local dictionary
+        rfid_users[rfid_id] = {"user_id": user_id, "name": name}
+        print("✅ Local dictionary updated")
 
-    return jsonify({
-        "success": True,
-        "message": f"User {name} successfully registered with RFID card!"
-    })
+        return jsonify({
+            "success": True,
+            "message": f"Registration successful for {name}!"
+        })
+    except Exception as e:
+        print(f"❌ Error during registration: {e}")
+        return jsonify({"error": f"Registration failed: {str(e)}"})
+
+@app.route("/rfid/read", methods=["GET"])
+def read_rfid():
+    """Endpoint to read RFID card"""
+    print("🔍 Starting RFID card read...")
+    try:
+        card_id = read_rfid_card()
+        if card_id:
+            print(f"✅ Card read successfully: {card_id}")
+            return jsonify({
+                "success": True,
+                "rfid_id": card_id
+            })
+        print("❌ No card detected within timeout period")
+        return jsonify({
+            "success": False,
+            "error": "No card detected within timeout period"
+        })
+    except Exception as e:
+        print(f"❌ Error reading RFID card: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        })
+
+@app.route("/attendance/rfid")
+def start_rfid_attendance():
+    """Start RFID attendance monitoring"""
+    try:
+        while True:
+            card_id = read_rfid_card(timeout=1)  # Short timeout for continuous reading
+            if card_id:
+                print(f"Card detected: {card_id}")
+                if card_id in rfid_users:
+                    user_data = rfid_users[card_id]
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    with open(ATTENDANCE_CSV, mode="a", newline="") as file:
+                        writer = csv.writer(file)
+                        writer.writerow([user_data["user_id"], user_data["name"], timestamp])
+                    
+                    print(f"✅ Attendance marked for {user_data['name']}")
+                else:
+                    print("❌ Unknown RFID card")
+                
+                time.sleep(1)  # Prevent multiple reads of the same card
+            
+            # Check for interrupt signal
+            if os.path.exists("stop_rfid_attendance"):
+                os.remove("stop_rfid_attendance")
+                break
+                
+    except KeyboardInterrupt:
+        print("\n🛑 RFID attendance monitoring stopped")
+    except Exception as e:
+        print(f"❌ Error in RFID attendance: {e}")
+    
+    return redirect(url_for("home"))
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

@@ -233,16 +233,14 @@
                         <h2 class="m-0">Today's Attendance <i class="material-icons">assignment</i></h2>
                     </div>
                     <div class="card-body text-center">
-                        <a href="{{ url_for('start_attendance') }}" class="d-block">
-                            <button class="btn btn-scan">
-                                Scan Faces <i class="material-icons">face</i>
-                            </button>
-                        </a>
-                        <a href="/attendance/id" class="d-block">
-                            <button class="btn btn-scan">
-                                Scan ID Cards <i class="material-icons">credit_card</i>
-                            </button>
-                        </a>
+                        <div class="btn-group mb-3" role="group">
+                            <a href="{{ url_for('start_attendance') }}" class="btn btn-scan">
+                                <i class="material-icons">face</i> Face Attendance
+                            </a>
+                            <a href="{{ url_for('start_rfid_attendance') }}" class="btn btn-scan">
+                                <i class="material-icons">credit_card</i> RFID Attendance
+                            </a>
+                        </div>
                         
                         <div class="table-responsive mt-4">
                             <table class="attendance-table">
@@ -481,50 +479,71 @@
         // Function to handle RFID registration
         async function startRFIDRegistration(username, userId) {
             try {
+                let timeLeft = 15;
                 document.getElementById('rfidStatus').innerHTML = `
                     <div class="alert alert-info">
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Waiting for card swipe...</span>
                         </div>
-                        <p class="mb-0">Please swipe your RFID card now...</p>
+                        <p class="mb-0">Please swipe your RFID card now... (${timeLeft} seconds remaining)</p>
                     </div>
                 `;
                 
-                // Here you would implement the actual RFID reading logic
-                // For now, we'll use the simulation
-                const rfidResponse = await new Promise((resolve) => {
-                    setTimeout(() => {
-                        resolve({ rfid_id: "RFID-" + Math.random().toString(36).substr(2, 9) });
-                    }, 5000);
-                });
+                // Start countdown timer
+                const countdownInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft >= 0) {
+                        document.getElementById('rfidStatus').querySelector('p').textContent = 
+                            `Please swipe your RFID card now... (${timeLeft} seconds remaining)`;
+                    }
+                }, 1000);
                 
-                // Register user with RFID
-                const response = await fetch("{{ url_for('register_rfid') }}", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        'rfid_id': rfidResponse.rfid_id,
-                        'user_id': userId,
-                        'name': username
-                    })
-                });
-                
-                const result = await response.json();
-                
-                document.getElementById('rfidStatus').innerHTML = `
-                    <div class="alert alert-${result.error ? 'danger' : 'success'}">
-                        ${result.message || result.error}
-                    </div>`;
-                
-                if (!result.error) {
+                try {
+                    // Read RFID card
+                    const response = await fetch("{{ url_for('read_rfid') }}");
+                    const rfidData = await response.json();
+                    clearInterval(countdownInterval);
+
+                    if (!rfidData.success) {
+                        throw new Error(rfidData.error || "Failed to read RFID card");
+                    }
+
+                    console.log("RFID Data received:", rfidData); // Debug log
+
+                    // Register user with RFID
+                    const registerResponse = await fetch("{{ url_for('register_rfid') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            'rfid_id': rfidData.rfid_id,
+                            'user_id': userId,
+                            'name': username
+                        })
+                    });
+                    
+                    const result = await registerResponse.json();
+                    
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+                    
+                    document.getElementById('rfidStatus').innerHTML = `
+                        <div class="alert alert-success">
+                            ${result.message}
+                        </div>`;
+                    
                     setTimeout(() => window.location.reload(), 2000);
+                    
+                } catch (error) {
+                    clearInterval(countdownInterval);
+                    throw error;
                 }
             } catch (error) {
                 console.error('Error:', error);
                 document.getElementById('rfidStatus').innerHTML = 
-                    '<div class="alert alert-danger">RFID registration failed. Please try again.</div>';
+                    `<div class="alert alert-danger">RFID registration failed: ${error.message}</div>`;
             }
         }
 
@@ -573,43 +592,72 @@
             startRfidOnlyBtn.style.display = 'none';
 
             try {
-                // Here you would implement the actual RFID reading logic
-                // For now, we'll use the simulation
-                const rfidResponse = await new Promise((resolve) => {
-                    setTimeout(() => {
-                        resolve({ rfid_id: "RFID-" + Math.random().toString(36).substr(2, 9) });
-                    }, 5000);
-                });
+                let timeLeft = 15;
+                rfidOnlyStatus.innerHTML = `
+                    <div class="alert alert-info">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Waiting for card swipe...</span>
+                        </div>
+                        <p class="mb-0">Please swipe your RFID card now... (${timeLeft} seconds remaining)</p>
+                    </div>
+                `;
+                
+                // Start countdown timer
+                const countdownInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft >= 0) {
+                        rfidOnlyStatus.querySelector('p').textContent = 
+                            `Please swipe your RFID card now... (${timeLeft} seconds remaining)`;
+                    }
+                }, 1000);
+                
+                try {
+                    // Read RFID card
+                    const response = await fetch("{{ url_for('read_rfid') }}");
+                    const rfidData = await response.json();
+                    clearInterval(countdownInterval);
 
-                // Register user with RFID
-                const response = await fetch("{{ url_for('register_rfid') }}", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        'rfid_id': rfidResponse.rfid_id,
-                        'user_id': userId,
-                        'name': username
-                    })
-                });
+                    if (!rfidData.success) {
+                        throw new Error(rfidData.error || "Failed to read RFID card");
+                    }
 
-                const result = await response.json();
+                    console.log("RFID Data received:", rfidData); // Debug log
 
-                rfidOnlyModal.hide();
-                document.getElementById('registrationStatus').innerHTML = `
-                    <div class="alert alert-${result.error ? 'danger' : 'success'}">
-                        ${result.message || result.error}
-                    </div>`;
-                registrationModal.show();
+                    // Register user with RFID
+                    const registerResponse = await fetch("{{ url_for('register_rfid_only') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            'rfid_id': rfidData.rfid_id,
+                            'user_id': userId,
+                            'name': username
+                        })
+                    });
 
-                if (!result.error) {
+                    const result = await registerResponse.json();
+                    
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+
+                    rfidOnlyModal.hide();
+                    document.getElementById('registrationStatus').innerHTML = `
+                        <div class="alert alert-success">
+                            ${result.message}
+                        </div>`;
+                    registrationModal.show();
+
                     setTimeout(() => window.location.reload(), 2000);
+                } catch (error) {
+                    clearInterval(countdownInterval);
+                    throw error;
                 }
             } catch (error) {
                 console.error('Error:', error);
                 rfidOnlyStatus.innerHTML = 
-                    '<div class="alert alert-danger">RFID registration failed. Please try again.</div>';
+                    `<div class="alert alert-danger">RFID registration failed: ${error.message}</div>`;
             }
         });
 
