@@ -1,1 +1,4 @@
 venv
+static
+face_encodings.pkl
+haarcascade_frontalface_default.xml

@@ -4,7 +4,6 @@ from flask import Flask, request, render_template, redirect, url_for, jsonify
 from datetime import date, datetime
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import GridSearchCV
 import pandas as pd
 import joblib
 from openpyxl import load_workbook, Workbook
@@ -53,6 +52,7 @@ def start_process():
     global current_wb, current_sheet, current_file
     try:
         current_file = get_today_filename()
+        # Check if the file exists. If not, create it.
         if os.path.exists(f'Attendance/{current_file}'):
             current_wb = load_workbook(f'Attendance/{current_file}')
             sheet_count = len(current_wb.sheetnames)
@@ -60,10 +60,12 @@ def start_process():
             current_wb = Workbook()
             default_sheet = current_wb.active
             current_wb.remove(default_sheet)
-            sheet_count = 0
+            sheet_count = 0  # New file, start from sheet count = 0
 
+        # Get next period name (for the sheet)
         period_name = get_period_name(sheet_count + 1)
 
+        # Create a new sheet for this period
         current_sheet = current_wb.create_sheet(period_name)
         current_sheet['A1'] = "Name"
         current_sheet['B1'] = "ID"
@@ -110,30 +112,17 @@ def train_model():
             faces.append(resized_face.ravel())
             labels.append(user)
     faces = np.array(faces)
-
-    # Hyperparameter tuning using GridSearchCV
-    param_grid = {
-        'n_neighbors': [3, 5, 7, 9, 11],
-        'weights': ['uniform', 'distance'],
-        'algorithm': ['auto', 'ball_tree', 'kd_tree', 'brute'],
-        'metric': ['euclidean', 'manhattan', 'chebyshev']
-    }
-
-    knn = KNeighborsClassifier()
-    grid_search = GridSearchCV(knn, param_grid, cv=3, n_jobs=-1, verbose=2, scoring='accuracy')
-    grid_search.fit(faces, labels)
-
-    # Best parameters found by GridSearchCV
-    best_knn = grid_search.best_estimator_
-
-    # Save the best model
-    joblib.dump(best_knn, 'static/face_recognition_model.pkl')
+    knn = KNeighborsClassifier(n_neighbors=5)
+    knn.fit(faces, labels)
+    joblib.dump(knn, 'static/face_recognition_model.pkl')
 
 
 def extract_attendance():
+    # Read attendance from Excel file
     current_file = get_today_filename()
     if os.path.exists(f'Attendance/{current_file}'):
         current_wb = load_workbook(f'Attendance/{current_file}')
+        # Get the last sheet (most recent period)
         current_sheet = current_wb.sheetnames[-1]
         sheet = current_wb[current_sheet]
 
@@ -155,9 +144,10 @@ def add_attendance(name):
     userid = name.split('_')[1]
     current_time = datetime.now().strftime("%H:%M:%S")
 
+    # Add attendance to Excel
     row = [username, userid, current_time]
     current_sheet.append(row)
-    current_wb.save(f'Attendance/{current_file}')
+    current_wb.save(f'Attendance/{current_file}')  # Save Excel file after adding attendance
 
 
 def getallusers():
@@ -174,7 +164,7 @@ def getallusers():
 
 @app.route('/')
 def home():
-    names, rolls, times, l = extract_attendance()
+    names, rolls, times, l = extract_attendance()  # Ensure this fetches from the most recent sheet
     return render_template('home.html', names=names, rolls=rolls, times=times, l=l, totalreg=totalreg(),
                            datetoday2=datetoday2)
 
@@ -192,7 +182,7 @@ def start():
         return render_template('home.html', names=names, rolls=rolls, times=times, l=l, totalreg=totalreg(),
                                datetoday2=datetoday2, mess='No trained model found. Please add a face to continue.')
 
-    start_process()
+    start_process()  # Open a new sheet for today
 
     cap = cv2.VideoCapture(0)
     added_faces = set()
@@ -207,19 +197,21 @@ def start():
             identified_person = identify_face(face.reshape(1, -1))[0]
 
             if identified_person != "Unknown" and identified_person not in added_faces:
-                add_attendance(identified_person)
+                add_attendance(identified_person)  # Add attendance to Excel
                 added_faces.add(identified_person)
 
             if identified_person == "Unknown":
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-                cv2.putText(frame, identified_person, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                # Red box for unknown users
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)  # Red color (BGR)
+                cv2.putText(frame, identified_person, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)  # Red text
             else:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                cv2.putText(frame, identified_person, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                # Green box for known users
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Green color (BGR)
+                cv2.putText(frame, identified_person, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)  # Green text
 
         imgBackground[162:162 + 480, 55:55 + 640] = frame
         cv2.imshow('Attendance', imgBackground)
-        if cv2.waitKey(1) == 27:
+        if cv2.waitKey(1) == 27:  # Press 'Esc' to exit
             break
 
     cap.release()
@@ -233,7 +225,7 @@ def start():
 def end_process():
     global current_wb, current_sheet
     try:
-        current_wb.save(f'Attendance/{current_file}')
+        current_wb.save(f'Attendance/{current_file}')  # Save the Excel file
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
@@ -267,7 +259,7 @@ def add():
         if j == nimgs * 5:
             break
         cv2.imshow('Adding New User', frame)
-        if cv2.waitKey(1) == 27:
+        if cv2.waitKey(1) == 27:  # Press 'Esc' to exit
             break
 
     cap.release()
