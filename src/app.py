@@ -5,32 +5,49 @@ import numpy as np
 import face_recognition
 import joblib
 import pandas as pd
-from flask import Flask, request, render_template, redirect, url_for
+from flask import Flask, request, render_template, redirect, url_for, jsonify
 from datetime import datetime
 from mtcnn import MTCNN
+import csv
+import serial
+import serial.tools.list_ports
 
 
 app = Flask(__name__)
 
 # Paths
 KNOWN_FACES_DIR = "static/faces"
-ATTENDANCE_CSV = f"Attendance/Attendance-{datetime.today().strftime('%m_%d_%y')}.csv"
+DATA_DIR = "data"
 
-# Create directories if they don't exist
+# Create data directory if it doesn't exist
+os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
-os.makedirs("Attendance", exist_ok=True)
 
-# Initialize MTCNN
-detector = MTCNN()
+# Generate attendance file path with today's date
+ATTENDANCE_CSV = f"{DATA_DIR}/Attendance-{datetime.today().strftime('%m_%d_%y')}.csv"
+RFID_USER_CSV = os.path.join(DATA_DIR, "users.csv")
 
-# Face recognition threshold
-FACE_MATCH_THRESHOLD = 0.45  # Stricter threshold for higher accuracy
+# Initialize RFID CSV files if they don't exist
+if not os.path.exists(RFID_USER_CSV):
+    with open(RFID_USER_CSV, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["RFID ID","User ID","Name"])
+if not os.path.exists(ATTENDANCE_CSV):
+    with open(ATTENDANCE_CSV, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["User ID","Name","Time"])
 
 # Load saved encodings
 if os.path.exists("face_encodings.pkl"):
     known_face_encodings, known_face_names = joblib.load("face_encodings.pkl")
 else:
     known_face_encodings, known_face_names = [], []
+rfid_users = {}
+
+# Initialize MTCNN
+detector = MTCNN()
+# Face recognition threshold
+FACE_MATCH_THRESHOLD = 0.45  # Stricter threshold for higher accuracy
 
 
 # Function to load known faces
@@ -105,8 +122,7 @@ def mark_attendance(name):
         os.makedirs("Attendance", exist_ok=True)
 
         # Generate attendance file path with today's date
-        attendance_file = f"Attendance/Attendance-{datetime.today().strftime('%m_%d_%y')}.csv"
-
+        attendance_file = ATTENDANCE_CSV
         # Check if file exists and load existing data
         if os.path.exists(attendance_file):
             df = pd.read_csv(attendance_file)
@@ -134,8 +150,17 @@ def mark_attendance(name):
         print(f"❌ Error marking attendance: {e}")
 
 
+def load_rfid_users():
+    global rfid_users
+    rfid_users = {}
+    with open(RFID_USER_CSV, mode="r") as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header
+        for row in reader:
+            rfid_users[row[0]] = row[1]
 
-
+# Load RFID users at startup
+load_rfid_users()
 
 # Flask Routes
 
@@ -162,20 +187,20 @@ def home():
 @app.route("/add", methods=["POST"])
 def register_user():
     if "username" not in request.form or "user_id" not in request.form:
-        return render_template("home.html", message="Error: Username and User ID required!")
+        return jsonify({"success": False, "message": "Error: Username and User ID required!"})
 
     username = request.form["username"].strip()
     user_id = request.form["user_id"].strip()
 
     if not username or not user_id:
-        return render_template("home.html", message="Username and User ID cannot be empty!")
+        return jsonify({"success": False, "message": "Username and User ID cannot be empty!"})
 
     user_dir = os.path.join(KNOWN_FACES_DIR, f"{username}_{user_id}")
     os.makedirs(user_dir, exist_ok=True)
 
     cap = cv2.VideoCapture("/dev/video0")
     if not cap.isOpened():
-        return render_template("home.html", message="Error: Could not access webcam!")
+        return jsonify({"success": False, "message": "Error: Could not access webcam!"})
 
     print(f"📸 Please position your face within the frame for {username} (User ID: {user_id})...")
 
@@ -233,7 +258,7 @@ def register_user():
             print("🚪 User cancelled registration.")
             cap.release()
             cv2.destroyAllWindows()
-            return render_template("home.html", message="Registration cancelled.")
+            return jsonify({"success": False, "message": "Registration cancelled."})
 
     # Automatically capture 5 images with a delay
     for i in range(5):
@@ -253,7 +278,7 @@ def register_user():
             print("🚪 User cancelled registration.")
             cap.release()
             cv2.destroyAllWindows()
-            return render_template("home.html", message="Registration cancelled.")
+            return jsonify({"success": False, "message": "Registration cancelled."})
 
     cap.release()
     cv2.destroyAllWindows()
@@ -263,7 +288,10 @@ def register_user():
     # Load newly added faces
     load_known_faces()
 
-    return render_template("home.html", message=f"✅ {username} (User ID: {user_id}) successfully registered with 5 images!")
+    return jsonify({
+        "success": True,
+        "message": f"✅ {username} (User ID: {user_id}) successfully registered with 5 images!"
+    })
 
 
 
@@ -331,6 +359,94 @@ def start_attendance():
     # Force page to refresh after attendance is marked
     return redirect(url_for("home"))
 
+
+@app.route("/rfid/register", methods=["POST"])
+def register_rfid():
+    user_id = request.form.get("user_id", "").strip()
+    rfid_id = request.form.get("rfid_id", "").strip()
+    name = request.form.get("name", "").strip()
+
+    if not user_id or not name:
+        return jsonify({"error": "User ID and Name are required!"})
+
+    if user_id in rfid_users:
+        return jsonify({"error": "User ID already registered!"})
+
+    with open(RFID_USER_CSV, mode="a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([rfid_id, user_id, name])
+
+    rfid_users[user_id] = name  # Update local dictionary
+
+    return jsonify({"message": "User registered successfully!"})
+
+@app.route("/rfid/scan", methods=["POST"])
+def rfid_scan():
+    user_id = request.form.get("user_id", "").strip()
+    
+    if not user_id:
+        return jsonify({"error": "Invalid scan! User ID is empty."})
+
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    name = rfid_users.get(user_id, "Unknown")
+
+    with open(ATTENDANCE_CSV, mode="a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([user_id, name, timestamp])
+
+    return jsonify({"message": f"Attendance recorded for {name}!"})
+
+@app.route("/check_rfid", methods=["GET"])
+def check_rfid_available():
+    """Endpoint to check RFID reader availability"""
+    return jsonify({
+        "available": check_rfid_reader(),
+        "message": "RFID reader detected" if check_rfid_reader() else "No RFID reader found"
+    })
+
+def check_rfid_reader():
+    """Check if RFID reader is connected via USB"""
+    # try:
+    #     # Look for USB devices that might be the RFID reader
+    #     ports = list(serial.tools.list_ports.comports())
+    #     for port in ports:
+    #         if "USB" in port.description:  # Modify this condition based on your RFID reader
+    #             return True
+    #     return False
+    # except:
+    #     return False
+    return True
+
+@app.route("/rfid/register_only", methods=["POST"])
+def register_rfid_only():
+    user_id = request.form.get("user_id", "").strip()
+    rfid_id = request.form.get("rfid_id", "").strip()
+    name = request.form.get("name", "").strip()
+
+    if not user_id or not name or not rfid_id:
+        return jsonify({"error": "User ID, Name, and RFID ID are required!"})
+
+    # Check if RFID ID already exists
+    with open(RFID_USER_CSV, mode="r") as file:
+        reader = csv.reader(file)
+        next(reader)  # Skip header
+        for row in reader:
+            if row[0] == rfid_id:
+                return jsonify({"error": "RFID card already registered!"})
+            if row[1] == user_id:
+                return jsonify({"error": "User ID already registered!"})
+
+    # Register new user
+    with open(RFID_USER_CSV, mode="a", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow([rfid_id, user_id, name])
+
+    rfid_users[user_id] = name  # Update local dictionary
+
+    return jsonify({
+        "success": True,
+        "message": f"User {name} successfully registered with RFID card!"
+    })
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
