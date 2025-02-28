@@ -2,3 +2,5 @@ venv
 static
 face_encodings.pkl
 haarcascade_frontalface_default.xml
+data/users.csv
+data/Attendance-02_27_25.csv
