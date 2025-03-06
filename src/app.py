@@ -281,31 +281,53 @@ def register_user():
     user_dir = os.path.join(KNOWN_FACES_DIR, f"{username}_{user_id}")
     os.makedirs(user_dir, exist_ok=True)
 
+    # Define the angles we want to capture
+    angles = [
+        "front facing",
+        "slightly right",
+        "slightly left",
+        "slightly up",
+        "slightly down"
+    ]
+
     try:
         cap = cv2.VideoCapture("/dev/video0")
         if not cap.isOpened():
             return jsonify({"success": False, "message": "Error: Could not access webcam!"})
 
-        print(f"📸 Please position your face within the frame for {username} (User ID: {user_id})...")
+        print(f"📸 Starting face registration for {username} (User ID: {user_id})...")
 
-        face_detected_frames = 0  # Counter for correctly positioned frames
-        required_frames = 3  # User must hold still for 10 frames
+        face_detected_frames = 0
+        required_frames = 3
+        capture_phase = False
+        current_angle_index = 0
+        last_capture_time = 0
+        capture_delay = 3
 
-        while True:
+        while current_angle_index < len(angles):
             ret, frame = cap.read()
             if not ret:
                 continue
 
+            display_frame = frame.copy()
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             detections = detector.detect_faces(rgb_frame)
 
             h, w, _ = frame.shape
             guide_x1, guide_y1, guide_x2, guide_y2 = int(w * 0.3), int(h * 0.3), int(w * 0.7), int(h * 0.7)
 
-            # Draw a guiding box for face alignment
-            cv2.rectangle(frame, (guide_x1, guide_y1), (guide_x2, guide_y2), (255, 255, 0), 2)
-            cv2.putText(frame, "Align your face within the blue box", (50, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            # Draw guide box
+            cv2.rectangle(display_frame, (guide_x1, guide_y1), (guide_x2, guide_y2), (255, 255, 0), 2)
+
+            # Display current angle instruction
+            current_angle = angles[current_angle_index]
+            if not capture_phase:
+                instruction = f"Position {current_angle} and stay still"
+                cv2.putText(display_frame, instruction, 
+                          (50, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            else:
+                cv2.putText(display_frame, f"Capturing {current_angle} image...", 
+                          (50, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
             face_properly_aligned = False
 
@@ -313,67 +335,75 @@ def register_user():
                 x, y, width, height = detection['box']
                 x2, y2 = x + width, y + height
 
-                # Draw a bounding box around the detected face
-                cv2.rectangle(frame, (x, y), (x2, y2), (0, 255, 0), 2)
+                # Draw face detection box
+                box_color = (0, 255, 0) if guide_x1 < x and guide_x2 > x2 and guide_y1 < y and guide_y2 > y2 else (0, 0, 255)
+                cv2.rectangle(display_frame, (x, y), (x2, y2), box_color, 2)
 
-                # Face is properly positioned if within the guiding box
                 if guide_x1 < x and guide_x2 > x2 and guide_y1 < y and guide_y2 > y2 and 120 < width < 300:
                     face_properly_aligned = True
-                    face_detected_frames += 1
+                    if not capture_phase:
+                        face_detected_frames += 1
                 else:
-                    face_detected_frames = 0  # Reset counter if face moves out of position
+                    face_detected_frames = max(0, face_detected_frames - 1)
 
-                # Display progress bar
+            # Draw progress bar for alignment phase
+            if not capture_phase:
                 progress_width = int((face_detected_frames / required_frames) * 300)
-                cv2.rectangle(frame, (50, h - 50), (50 + progress_width, h - 30), (0, 255, 0), -1)
-                cv2.rectangle(frame, (50, h - 50), (350, h - 30), (255, 255, 255), 2)
-                cv2.putText(frame, f"Hold still: {face_detected_frames}/{required_frames}", (50, h - 60),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.rectangle(display_frame, (50, h - 50), (50 + progress_width, h - 30), (0, 255, 0), -1)
+                cv2.rectangle(display_frame, (50, h - 50), (350, h - 30), (255, 255, 255), 2)
+                cv2.putText(display_frame, f"Hold still: {face_detected_frames}/{required_frames}", 
+                          (50, h - 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
 
-            cv2.imshow("Registering User - Adjust Your Position", frame)
+            # Show overall progress
+            cv2.putText(display_frame, f"Angle {current_angle_index + 1} of {len(angles)}", 
+                      (w - 200, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
-            # If face is properly aligned for the required frames, capture images
-            if face_detected_frames >= required_frames:
-                print("✅ Face positioned correctly. Capturing images...")
-                break
+            # Start capture phase if face aligned long enough
+            if face_detected_frames >= required_frames and not capture_phase:
+                capture_phase = True
+                last_capture_time = time.time()
+                print(f"✅ Face positioned correctly for {current_angle}. Capturing...")
 
-            # Press ESC to cancel registration
+            # Handle image capture
+            if capture_phase and time.time() - last_capture_time > capture_delay:
+                if face_properly_aligned:
+                    # Save image with angle information
+                    filename = f"{username}_{user_id}_{current_angle.replace(' ', '_')}.jpg"
+                    cv2.imwrite(os.path.join(user_dir, filename), frame)
+                    print(f"📸 Captured {current_angle} image")
+                    
+                    # Reset for next angle
+                    current_angle_index += 1
+                    capture_phase = False
+                    face_detected_frames = 0
+                    
+                    if current_angle_index < len(angles):
+                        print(f"👉 Please position your face {angles[current_angle_index]}")
+                        time.sleep(1)  # Brief pause between angles
+
+            cv2.imshow("Registration - Follow Instructions", display_frame)
+
             if cv2.waitKey(1) & 0xFF == 27:
                 print("🚪 User cancelled registration.")
                 cap.release()
                 cv2.destroyAllWindows()
                 return jsonify({"success": False, "message": "Registration cancelled."})
 
-        # Automatically capture 5 images with a delay
-        for i in range(5):
-            ret, frame = cap.read()
-            if not ret:
-                print(f"❌ Failed to capture frame {i + 1}")
-                continue
-
-            # Display capture count
-            cv2.putText(frame, f"Capturing Image {i + 1}/5", (50, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-            cv2.imshow("Registering User", frame)
-            cv2.imwrite(os.path.join(user_dir, f"{username}_{user_id}_{i}.jpg"), frame)
-
-            time.sleep(3)  # Delay between captures
-            if cv2.waitKey(1) & 0xFF == 27:
-                print("🚪 User cancelled registration.")
-                break
+        print("✅ All angles captured successfully!")
+        time.sleep(1)  # Brief pause to show completion
 
         # Load newly added faces
         load_known_faces()
 
         return jsonify({
             "success": True,
-            "message": f"✅ {username} (User ID: {user_id}) successfully registered with 5 images!"
+            "message": f"✅ {username} (User ID: {user_id}) successfully registered with {len(angles)} angles!"
         })
+
     except Exception as e:
         print(f"❌ Camera error during registration: {e}")
         return jsonify({"success": False, "message": f"Error: {str(e)}"})
     finally:
-        # Ensure camera is properly released and windows are closed
         if 'cap' in locals() and cap is not None:
             cap.release()
         cv2.destroyAllWindows()
