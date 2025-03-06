@@ -28,6 +28,10 @@ os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
 ATTENDANCE_CSV = f"{DATA_DIR}/Attendance-{datetime.today().strftime('%m_%d_%y')}.csv"
 RFID_USER_CSV = os.path.join(DATA_DIR, "users.csv")
 
+# Add this for session tracking
+CURRENT_SESSION = None
+SESSION_START_TIME = None
+
 # Initialize RFID CSV files if they don't exist
 if not os.path.exists(RFID_USER_CSV):
     with open(RFID_USER_CSV, mode="w", newline="") as file:
@@ -193,20 +197,36 @@ def recognize_faces(frame):
     return recognized_names
 
 
+# Function to generate a new session file
+def create_new_session():
+    global CURRENT_SESSION, SESSION_START_TIME
+    SESSION_START_TIME = datetime.now()
+    session_id = SESSION_START_TIME.strftime("%m_%d_%y_%H_%M")
+    CURRENT_SESSION = f"{DATA_DIR}/Session-{session_id}.csv"
+    
+    # Create the session file with headers
+    if not os.path.exists(CURRENT_SESSION):
+        with open(CURRENT_SESSION, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["User ID", "Name", "Time"])
+    
+    return CURRENT_SESSION
+
 # Function to mark attendance
 def mark_attendance(name):
     if name == "Unknown":
         return
 
     try:
-        # Ensure the Attendance folder exists
-        os.makedirs("Attendance", exist_ok=True)
+        # Ensure we have an active session
+        global CURRENT_SESSION
+        if not CURRENT_SESSION:
+            print("⚠️ No active session found. Creating a new one.")
+            create_new_session()
 
-        # Generate attendance file path with today's date
-        attendance_file = ATTENDANCE_CSV
         # Check if file exists and load existing data
-        if os.path.exists(attendance_file):
-            df = pd.read_csv(attendance_file)
+        if os.path.exists(CURRENT_SESSION):
+            df = pd.read_csv(CURRENT_SESSION)
         else:
             df = pd.DataFrame(columns=["User ID", "Name", "Time"])
 
@@ -215,17 +235,17 @@ def mark_attendance(name):
         # Extract user ID from stored name format
         user_id = name.split("_")[-1]
 
-        # Check if already marked
+        # Check if already marked in this session
         if user_id not in df["User ID"].values:
             new_entry = pd.DataFrame({"User ID": [user_id], "Name": [name], "Time": [current_time]})
             df = pd.concat([df, new_entry], ignore_index=True)
 
             # Save and flush data immediately
-            df.to_csv(attendance_file, index=False)
+            df.to_csv(CURRENT_SESSION, index=False)
             print(f"✅ Attendance marked for {name} (User ID: {user_id}) at {current_time}")
 
         else:
-            print(f"⚠️ {name} (User ID: {user_id}) is already marked present.")
+            print(f"⚠️ {name} (User ID: {user_id}) is already marked present in this session.")
 
     except Exception as e:
         print(f"❌ Error marking attendance: {e}")
@@ -252,13 +272,40 @@ def home():
     # Count total registered users
     total_users = len(os.listdir(KNOWN_FACES_DIR)) if os.path.exists(KNOWN_FACES_DIR) else 0
 
-    # Load latest attendance data
-    attendance_data = pd.read_csv(ATTENDANCE_CSV) if os.path.exists(ATTENDANCE_CSV) else pd.DataFrame()
+    # Load latest attendance data from current session if available
+    attendance_data = pd.DataFrame()
+    if CURRENT_SESSION and os.path.exists(CURRENT_SESSION):
+        attendance_data = pd.read_csv(CURRENT_SESSION)
+    elif os.path.exists(ATTENDANCE_CSV):
+        attendance_data = pd.read_csv(ATTENDANCE_CSV)
+
+    # Get list of all session files
+    session_files = []
+    for file in os.listdir(DATA_DIR):
+        if file.startswith("Session-"):
+            try:
+                # Extract datetime from filename
+                session_time = file.replace("Session-", "").replace(".csv", "")
+                dt = datetime.strptime(session_time, "%m_%d_%y_%H_%M")
+                
+                session_files.append({
+                    "filename": file,
+                    "display_name": dt.strftime("%b %d, %Y at %I:%M %p"),
+                    "timestamp": dt.timestamp()  # Add timestamp for sorting
+                })
+            except Exception as e:
+                print(f"Error parsing session file {file}: {e}")
+                continue
+    
+    # Sort sessions by timestamp (newest first)
+    session_files.sort(key=lambda x: x["timestamp"], reverse=True)
 
     return render_template(
         "home.html",
-        total_users=total_users,  # Send total user count
-        attendance=attendance_data.to_dict(orient="records")  # Send attendance data
+        total_users=total_users,
+        attendance=attendance_data.to_dict(orient="records"),
+        sessions=session_files,
+        current_session=CURRENT_SESSION.split("/")[-1] if CURRENT_SESSION else None
     )
 
 
@@ -414,7 +461,11 @@ def register_user():
 
 @app.route("/attendance/faces")
 def start_attendance():
-    global known_face_encodings, known_face_names
+    global known_face_encodings, known_face_names, CURRENT_SESSION
+
+    # Create a new session when starting attendance
+    CURRENT_SESSION = create_new_session()
+    print(f"📝 Starting new attendance session: {CURRENT_SESSION}")
 
     # Reload faces in case they were cleared
     if not os.listdir(KNOWN_FACES_DIR):
@@ -459,6 +510,15 @@ def start_attendance():
                 # Draw rectangle around the face
                 cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
                 cv2.putText(frame, name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, box_color, 2)
+
+            # Display session info on the frame
+            session_info = f"Session: {CURRENT_SESSION.split('/')[-1]}"
+            cv2.putText(frame, session_info, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
+            # Display elapsed time
+            elapsed = datetime.now() - SESSION_START_TIME
+            elapsed_str = f"Time: {elapsed.seconds // 60}m {elapsed.seconds % 60}s"
+            cv2.putText(frame, elapsed_str, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
 
             cv2.imshow("Face Attendance System", frame)
 
@@ -535,6 +595,7 @@ def register_rfid():
 
 @app.route("/rfid/scan", methods=["POST"])
 def rfid_scan():
+    """Handle RFID card scan"""
     rfid_id = request.form.get("rfid_id", "").strip()
     
     if not rfid_id:
@@ -544,13 +605,40 @@ def rfid_scan():
         return jsonify({"error": "Unknown RFID card!"})
 
     user_data = rfid_users[rfid_id]
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    try:
+        # Ensure we have an active session
+        global CURRENT_SESSION
+        if not CURRENT_SESSION:
+            print("⚠️ No active session found. Creating a new one.")
+            create_new_session()
 
-    with open(ATTENDANCE_CSV, mode="a", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow([user_data["user_id"], user_data["name"], timestamp])
+        # Check if already marked in this session
+        if os.path.exists(CURRENT_SESSION):
+            df = pd.read_csv(CURRENT_SESSION)
+            if user_data["user_id"] in df["User ID"].values:
+                return jsonify({"error": f"{user_data['name']} already marked in this session"})
 
-    return jsonify({"message": f"Attendance recorded for {user_data['name']}!"})
+        # Mark attendance
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        with open(CURRENT_SESSION, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([user_data["user_id"], user_data["name"], timestamp])
+
+        print(f"✅ Attendance marked for {user_data['name']}")
+        return jsonify({
+            "success": True,
+            "message": f"Attendance recorded for {user_data['name']}!",
+            "user": {
+                "id": user_data["user_id"],
+                "name": user_data["name"],
+                "time": timestamp
+            }
+        })
+
+    except Exception as e:
+        print(f"❌ Error recording attendance: {e}")
+        return jsonify({"error": f"Failed to record attendance: {str(e)}"})
 
 @app.route("/check_rfid", methods=["GET"])
 def check_rfid_available():
@@ -638,72 +726,105 @@ def read_rfid():
 @app.route("/attendance/rfid")
 def start_rfid_attendance():
     """Start RFID attendance monitoring"""
-    try:
-        print("🔄 Starting RFID attendance mode...")
-        while True:
-            card_id = read_rfid_card(timeout=1)  # Short timeout for continuous reading
-            if card_id:
-                print(f"💳 Card detected: {card_id}")
-                if card_id in rfid_users:
-                    user_data = rfid_users[card_id]
-                    
-                    # Check if already marked attendance today
-                    with open(ATTENDANCE_CSV, mode="r") as file:
-                        reader = csv.reader(file)
-                        next(reader)  # Skip header
-                        already_marked = False
-                        for row in reader:
-                            if row[0] == user_data["user_id"]:  # Check User ID
-                                already_marked = True
-                                print(f"⚠️ {user_data['name']} already marked attendance today")
-                                break
-                    
-                    if not already_marked:
-                        timestamp = datetime.now().strftime("%H:%M:%S")
-                        
-                        with open(ATTENDANCE_CSV, mode="a", newline="") as file:
-                            writer = csv.writer(file)
-                            writer.writerow([user_data["user_id"], user_data["name"], timestamp])
-                        
-                        print(f"✅ Attendance marked for {user_data['name']}")
-                else:
-                    print("❌ Unknown RFID card")
-                
-                time.sleep(1)  # Prevent multiple reads of the same card
-            
-            # Check for ESC key press
-            if cv2.waitKey(1) & 0xFF == 27:  # 27 is ESC key
-                print("\n🛑 ESC pressed - stopping RFID attendance")
-                break
-                
-    except KeyboardInterrupt:
-        print("\n🛑 RFID attendance monitoring stopped")
-    except Exception as e:
-        print(f"❌ Error in RFID attendance: {e}")
-    finally:
-        cv2.destroyAllWindows()
+    global CURRENT_SESSION
     
-    return redirect(url_for("home"))
+    try:
+        # Create a new session
+        CURRENT_SESSION = create_new_session()
+        print(f"📝 Starting new RFID attendance session: {CURRENT_SESSION}")
+        
+        # Return success to indicate session started
+        return jsonify({
+            "success": True,
+            "message": "RFID attendance session started",
+            "session": CURRENT_SESSION.split("/")[-1]
+        })
+        
+    except Exception as e:
+        print(f"❌ Error starting RFID attendance session: {e}")
+        return jsonify({
+            "success": False,
+            "error": "Failed to start RFID attendance session"
+        })
 
 @app.route("/get_attendance")
 def get_attendance():
     """Endpoint to get current attendance data"""
     try:
-        if os.path.exists(ATTENDANCE_CSV):
+        session_id = request.args.get("session_id", None)
+        
+        if session_id:
+            # Load specific session
+            session_file = os.path.join(DATA_DIR, session_id)
+            if os.path.exists(session_file):
+                df = pd.read_csv(session_file)
+                return jsonify({
+                    "success": True,
+                    "attendance": df.to_dict(orient="records"),
+                    "session_name": session_id
+                })
+        elif CURRENT_SESSION and os.path.exists(CURRENT_SESSION):
+            # Load current session
+            df = pd.read_csv(CURRENT_SESSION)
+            return jsonify({
+                "success": True,
+                "attendance": df.to_dict(orient="records"),
+                "session_name": CURRENT_SESSION.split("/")[-1]
+            })
+        elif os.path.exists(ATTENDANCE_CSV):
+            # Fall back to default attendance file
             df = pd.read_csv(ATTENDANCE_CSV)
             return jsonify({
                 "success": True,
-                "attendance": df.to_dict(orient="records")
+                "attendance": df.to_dict(orient="records"),
+                "session_name": "Default"
             })
+            
         return jsonify({
             "success": True,
-            "attendance": []
+            "attendance": [],
+            "session_name": "No active session"
         })
     except Exception as e:
         print(f"❌ Error getting attendance data: {e}")
         return jsonify({
             "success": False,
             "error": "Failed to get attendance data"
+        })
+
+@app.route("/get_sessions")
+def get_sessions():
+    """Endpoint to get list of all sessions"""
+    try:
+        session_files = []
+        for file in os.listdir(DATA_DIR):
+            if file.startswith("Session-"):
+                try:
+                    # Extract datetime from filename
+                    session_time = file.replace("Session-", "").replace(".csv", "")
+                    dt = datetime.strptime(session_time, "%m_%d_%y_%H_%M")
+                    
+                    session_files.append({
+                        "filename": file,
+                        "display_name": dt.strftime("%b %d, %Y at %I:%M %p"),
+                        "timestamp": dt.timestamp()  # Add timestamp for sorting
+                    })
+                except Exception as e:
+                    print(f"Error parsing session file {file}: {e}")
+                    continue
+        
+        # Sort sessions by timestamp (newest first)
+        session_files.sort(key=lambda x: x["timestamp"], reverse=True)
+        
+        return jsonify({
+            "success": True,
+            "sessions": session_files
+        })
+    except Exception as e:
+        print(f"❌ Error getting sessions: {e}")
+        return jsonify({
+            "success": False,
+            "error": "Failed to get sessions"
         })
 
 if __name__ == "__main__":
