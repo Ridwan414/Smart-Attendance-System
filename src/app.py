@@ -5,13 +5,15 @@ import numpy as np
 import face_recognition
 import joblib
 import pandas as pd
-from flask import Flask, request, render_template, redirect, url_for, jsonify
+from flask import Flask, request, render_template, redirect, url_for, jsonify, send_file
 from datetime import datetime
 from mtcnn import MTCNN
 import csv
 import serial
 import serial.tools.list_ports
 import re
+import io
+import xlsxwriter
 
 
 app = Flask(__name__)
@@ -338,7 +340,7 @@ def register_user():
     ]
 
     try:
-        cap = cv2.VideoCapture("/dev/video0")
+        cap = cv2.VideoCapture("/dev/video3")
         if not cap.isOpened():
             return jsonify({"success": False, "message": "Error: Could not access webcam!"})
 
@@ -473,7 +475,7 @@ def start_attendance():
         print("⚠️ No registered faces. Only detecting unknown users.")
 
     try:
-        cap = cv2.VideoCapture("/dev/video0")
+        cap = cv2.VideoCapture("/dev/video3")
         if not cap.isOpened():
             print("❌ Failed to open camera")
             return redirect(url_for("home"))
@@ -826,6 +828,67 @@ def get_sessions():
             "success": False,
             "error": "Failed to get sessions"
         })
+
+@app.route("/download/<filename>")
+def download_file(filename):
+    """Download attendance file in Excel format"""
+    try:
+        # Determine the file path based on filename
+        if filename.startswith("Session-"):
+            file_path = os.path.join(DATA_DIR, filename)
+        elif filename.startswith("Attendance-"):
+            file_path = os.path.join(DATA_DIR, filename)
+        else:
+            return jsonify({"error": "Invalid file name"}), 400
+
+        if not os.path.exists(file_path):
+            return jsonify({"error": "File not found"}), 404
+
+        # Read CSV file
+        df = pd.read_csv(file_path)
+
+        # Create Excel file in memory
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name='Attendance', index=False)
+            
+            # Get workbook and worksheet objects
+            workbook = writer.book
+            worksheet = writer.sheets['Attendance']
+            
+            # Add some formatting
+            header_format = workbook.add_format({
+                'bold': True,
+                'bg_color': '#4B5563',
+                'font_color': 'white',
+                'border': 1
+            })
+            
+            # Format headers
+            for col_num, value in enumerate(df.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+                
+            # Auto-adjust columns width
+            for column in df:
+                column_length = max(df[column].astype(str).apply(len).max(), len(column))
+                col_idx = df.columns.get_loc(column)
+                worksheet.set_column(col_idx, col_idx, column_length + 2)
+
+        output.seek(0)
+        
+        # Generate Excel filename
+        excel_filename = filename.replace('.csv', '.xlsx')
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=excel_filename
+        )
+
+    except Exception as e:
+        print(f"Error downloading file: {e}")
+        return jsonify({"error": "Failed to download file"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

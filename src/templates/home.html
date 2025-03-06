@@ -227,6 +227,23 @@
             padding: 0.5rem 1rem;
             margin: 0;
         }
+
+        .btn-download {
+            background: linear-gradient(135deg, #10B981, #059669);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            color: white;
+            font-size: 0.875rem;
+        }
+
+        .btn-download:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -273,10 +290,16 @@
                                     <!-- Sessions will be loaded here -->
                                 </ul>
                             </div>
-                            <span id="sessionInfo" class="badge bg-info">
-                                <i class="material-icons align-middle" style="font-size: 16px;">today</i>
-                                <span id="sessionDate">Today</span>
-                            </span>
+                            <div class="d-flex gap-2 align-items-center">
+                                <button id="downloadCurrentBtn" class="btn-download">
+                                    <i class="material-icons align-middle" style="font-size: 16px;">download</i>
+                                    Download
+                                </button>
+                                <span id="sessionInfo" class="badge bg-info">
+                                    <i class="material-icons align-middle" style="font-size: 16px;">today</i>
+                                    <span id="sessionDate">Today</span>
+                                </span>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body text-center">
@@ -428,12 +451,12 @@
                 <div class="modal-body">
                     <form id="rfidOnlyForm">
                         <div class="mb-3">
-                            <label class="form-label">Enter User Name*</label>
-                            <input type="text" name="username" class="form-control" required>
+                            <label class="form-label text-black">Enter User Name*</label>
+                            <input type="text" name="username" class="form-control text-black" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Enter User ID*</label>
-                            <input type="text" name="user_id" class="form-control" required>
+                            <label class="form-label text-black">Enter User ID*</label>
+                            <input type="text" name="user_id" class="form-control text-black" required>
                         </div>
                     </form>
                     <div id="rfidOnlyStatus" style="display: none;">
@@ -802,35 +825,39 @@
                 
                 if (data.success) {
                     const sessionsList = document.getElementById('sessionsList');
-                    // Clear existing items except the first two
                     sessionsList.innerHTML = `
                         <li><a class="dropdown-item" href="#" data-session="current">Current Session</a></li>
                         <li><hr class="dropdown-divider"></li>
                     `;
                     
                     if (data.sessions.length > 0) {
-                        // Add sessions to dropdown
                         data.sessions.forEach(session => {
                             const li = document.createElement('li');
-                            li.innerHTML = `<a class="dropdown-item" href="#" data-session="${session.filename}">${session.display_name}</a>`;
+                            li.innerHTML = `
+                                <div class="dropdown-item d-flex justify-content-between align-items-center">
+                                    <a href="#" data-session="${session.filename}" class="text-decoration-none text-dark flex-grow-1">
+                                        ${session.display_name}
+                                    </a>
+                                    <button class="btn-download btn-sm ms-2" onclick="downloadSession('${session.filename}')">
+                                        <i class="material-icons" style="font-size: 16px;">download</i>
+                                    </button>
+                                </div>
+                            `;
                             sessionsList.appendChild(li);
                         });
                     } else {
-                        // Add a "No sessions" message if there are no previous sessions
                         const li = document.createElement('li');
                         li.innerHTML = `<a class="dropdown-item disabled" href="#">No previous sessions</a>`;
                         sessionsList.appendChild(li);
                     }
                     
-                    // Add click event to session items
-                    document.querySelectorAll('#sessionsList .dropdown-item').forEach(item => {
+                    // Add click events for session selection
+                    document.querySelectorAll('#sessionsList [data-session]').forEach(item => {
                         item.addEventListener('click', (e) => {
                             e.preventDefault();
                             if (!item.classList.contains('disabled')) {
                                 const sessionId = e.target.getAttribute('data-session');
                                 loadSessionData(sessionId);
-                                
-                                // Update dropdown button text
                                 document.getElementById('currentSessionName').textContent = 
                                     sessionId === 'current' ? 'Current Session' : e.target.textContent;
                             }
@@ -967,6 +994,23 @@
             // Load sessions list
             loadSessions();
         });
+
+        // Add download functionality
+        document.getElementById('downloadCurrentBtn').addEventListener('click', async () => {
+            const currentSession = document.getElementById('sessionInfo').textContent.trim();
+            if (currentSession) {
+                const filename = currentSession.includes('Session-') ? 
+                    currentSession.split('description')[1].trim() : 
+                    `Attendance-${new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }).replace(/\//g, '_')}.csv`;
+                    
+                window.location.href = `{{ url_for('download_file', filename='') }}${filename}`;
+            }
+        });
+
+        // Add download session function
+        function downloadSession(filename) {
+            window.location.href = `{{ url_for('download_file', filename='') }}${filename}`;
+        }
     });
     </script>
 </body>
