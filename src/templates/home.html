@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Smart Attendance System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <style>
+        :root {
+            /* Soft, modern color palette */
+            --primary: #3b82f6;
+            --primary-light: #60a5fa;
+            --primary-dark: #2563eb;
+            --secondary: #64748b;
+            --success: #10b981;
+            --background: #f8fafc;
+            --card-bg: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #475569;
+            --border-color: #e2e8f0;
+            --hover-bg: #f1f5f9;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            min-height: 100vh;
+            padding: 2rem;
+            overflow-x: hidden;
+            color: var(--text-primary);
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            padding: 2rem;
+            border-radius: 1rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.15);
+            transform: translateY(0);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 0;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 1rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background: var(--primary);
+            color: white;
+            padding: 1.5rem;
+            border: none;
+        }
+
+        .btn-scan {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            margin: 1rem 0;
+            width: 80%;
+            max-width: 400px;
+            color: white;
+        }
+
+        .btn-scan:hover {
+            background: linear-gradient(135deg, var(--primary-light), var(--primary));
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
+        }
+
+        .attendance-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin: 1rem 0;
+        }
+
+        .attendance-table th {
+            background-color: var(--hover-bg);
+            color: white;
+            font-weight: 600;
+        }
+
+        .attendance-table th, 
+        .attendance-table td {
+            padding: 1rem;
+            text-align: left;
+            color: white;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .attendance-table tr:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .form-control {
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border-color);
+            transition: all 0.2s ease;
+            color: var(--text-primary);
+        }
+
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .success-message {
+            background: var(--success);
+            color: white;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin: 1rem 0;
+            animation: slideIn 0.5s ease;
+            box-shadow: 0 4px 6px rgba(16, 185, 129, 0.1);
+        }
+
+        .alert-danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border: none;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin: 1rem 0;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .material-icons {
+            vertical-align: middle;
+            margin-left: 0.5rem;
+        }
+
+        .stats {
+            color: white;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            margin-top: 1rem;
+        }
+
+        /* Accessibility improvements */
+        .btn-scan:focus {
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --background: #0f172a;
+                --card-bg: #1e293b;
+                --text-primary: #f1f5f9;
+                --text-secondary: #cbd5e1;
+                --border-color: #334155;
+                --hover-bg: #334155;
+            }
+
+            .card {
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            }
+
+            .attendance-table th {
+                background-color: rgba(51, 65, 85, 0.5);
+            }
+        }
+
+        .alert-dismissible {
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        .alert.fade {
+            opacity: 0;
+        }
+
+        .alert.fade.show {
+            opacity: 1;
+        }
+
+        #rfidAttendanceStatus .alert {
+            padding: 0.5rem 1rem;
+            margin: 0;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #10B981, #059669);
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            color: white;
+            font-size: 0.875rem;
+        }
+
+        .btn-download:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Smart Attendance System <i class="material-icons">verified_user</i></h1>
+    </div>
+
+    <!-- Add this alert div at the top of the page, right after the header -->
+    <div id="rfidAttendanceAlert" class="alert alert-info alert-dismissible fade" style="display: none; position: sticky; top: 0; z-index: 1000;" role="alert">
+        <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2" role="status">
+                <span class="visually-hidden">Active...</span>
+            </div>
+            <strong>RFID Attendance Mode Active</strong>
+            <span class="ms-2">- Scan your ID card to mark attendance</span>
+        </div>
+        <div id="rfidAttendanceStatus" class="mt-2"></div>
+        <button type="button" class="btn-close" id="stopRfidAttendance"></button>
+    </div>
+
+    {% if success_mess %}
+        <div class="success-message text-center">{{ success_mess }}</div>
+    {% endif %}
+    {% if mess %}
+        <div class="alert alert-danger text-center">{{ mess }}</div>
+    {% endif %}
+
+    <div class="container">
+        <div class="row g-4">
+            <!-- Attendance Section -->
+            <div class="col-lg-7">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h2 class="m-0">Attendance <i class="material-icons">assignment</i></h2>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" id="sessionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="material-icons align-middle" style="font-size: 16px;">schedule</i>
+                                    <span id="currentSessionName">Current Session</span>
+                                </button>
+                                <ul class="dropdown-menu" id="sessionsList" aria-labelledby="sessionDropdown">
+                                    <li><a class="dropdown-item" href="#" data-session="current">Current Session</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <!-- Sessions will be loaded here -->
+                                </ul>
+                            </div>
+                            <div class="d-flex gap-2 align-items-center">
+                                <button id="downloadCurrentBtn" class="btn-download">
+                                    <i class="material-icons align-middle" style="font-size: 16px;">download</i>
+                                    Download
+                                </button>
+                                <span id="sessionInfo" class="badge bg-info">
+                                    <i class="material-icons align-middle" style="font-size: 16px;">today</i>
+                                    <span id="sessionDate">Today</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="btn-group mb-3" role="group">
+                            <a href="{{ url_for('start_attendance') }}" class="btn btn-scan">
+                                <i class="material-icons">face</i> Start New Face Session
+                            </a>
+                            <button class="btn btn-scan" id="startRfidAttendanceBtn">
+                                <i class="material-icons">credit_card</i> Start New RFID Session
+                            </button>
+                        </div>
+                        
+                        <div class="table-responsive mt-4">
+                            <table class="attendance-table">
+                                <thead>
+                                    <tr>
+                                        <th>S No</th>
+                                        <th>User ID</th>
+                                        <th>Name</th>
+                                        <th>Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if attendance %}
+                                        {% for entry in attendance|reverse %}
+                                            <tr>
+                                                <td>{{ attendance|length - loop.index0 }}</td>
+                                                <td>{{ entry["User ID"] }}</td>
+                                                <td>{{ entry["Name"] }}</td>
+                                                <td>{{ entry["Time"] }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="4" class="text-center">No attendance recorded yet.</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Registration Section -->
+            <div class="col-lg-5">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h2 class="m-0">Add New User <i class="material-icons">person_add</i></h2>
+                    </div>
+                    <div class="card-body">
+                        <!-- Step 1: Face Registration -->
+                        <form id="faceRegistrationForm" action="{{ url_for('register_user') }}" method="POST" enctype="multipart/form-data" class="p-3 d-flex flex-column align-items-center">
+                            <div class="mb-4">
+                                <label class="form-label">Enter New User Name*</label>
+                                <input type="text" name="username" id="username" class="form-control text-black" required>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label">Enter User ID*</label>
+                                <input type="text" name="user_id" id="user_id" class="form-control text-black" required>
+                            </div>
+
+                            <button type="submit" class="btn btn-scan w-100" id="registerFaceBtn">
+                                <i class="material-icons align-middle">face</i> 
+                                <span class="material-icons align-middle">add</span>
+                                <i class="material-icons align-middle">credit_card</i>
+                            </button>
+                        </form>
+
+                        <!-- Step 2: RFID Registration -->
+                        <div id="rfidRegistrationSection" style="display: none;" class="p-3">
+                            <div class="alert alert-success">
+                                <i class="material-icons">check_circle</i> Face Registration Complete!
+                            </div>
+                            <p class="text-center">Please swipe the RFID card to complete registration</p>
+                            <div class="text-center">
+                                <div id="rfidStatus" class="mt-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Waiting for card swipe...</span>
+                                    </div>
+                                    <p>Waiting for card swipe...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Add this button after the face registration form -->
+                        <div class="p-3 border-top d-flex flex-column align-items-center">
+                            <h5 class="mb-3 text-center text-white">Alternative Registration</h5>
+                            <button class="btn btn-scan w-100" id="rfidOnlyRegisterBtn">
+                                <i class="material-icons">credit_card</i>
+                            </button>
+                        </div>
+
+                        <div class="stats text-center">
+                            <h5 class="m-0">Total Users in Database: {{ total_users }}</h5>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this modal for registration status -->
+    <div class="modal fade" id="registrationModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Registration Status</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="registrationStatus"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this modal for RFID choice after registration -->
+    <div class="modal fade" id="rfidChoiceModal" tabindex="-1" style="color: black;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">RFID Registration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>RFID reader detected. Would you like to register an RFID card for this user?</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" onclick="skipRFIDRegistration()">Skip RFID</button>
+                    <button type="button" class="btn btn-primary" onclick="proceedWithRFID()">Register RFID</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add a new modal for RFID-only registration -->
+    <div class="modal fade" id="rfidOnlyModal" tabindex="-1" style="color: black;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">RFID Only Registration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="rfidOnlyForm">
+                        <div class="mb-3">
+                            <label class="form-label text-black">Enter User Name*</label>
+                            <input type="text" name="username" class="form-control text-black" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-black">Enter User ID*</label>
+                            <input type="text" name="user_id" class="form-control text-black" required>
+                        </div>
+                    </form>
+                    <div id="rfidOnlyStatus" style="display: none;">
+                        <div class="alert alert-info">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Waiting for card swipe...</span>
+                            </div>
+                            <p class="mb-0">Please swipe your RFID card now...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="startRfidOnlyRegistration">Start Registration</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const faceRegistrationForm = document.getElementById('faceRegistrationForm');
+        const rfidRegistrationSection = document.getElementById('rfidRegistrationSection');
+        const registrationModal = new bootstrap.Modal(document.getElementById('registrationModal'));
+        const rfidChoiceModal = new bootstrap.Modal(document.getElementById('rfidChoiceModal'));
+        
+        // Handle face registration form submission
+        faceRegistrationForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            try {
+                const formData = new FormData(faceRegistrationForm);
+                const response = await fetch("{{ url_for('register_user') }}", {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Change this line to use the correct endpoint name
+                    const rfidCheck = await fetch("{{ url_for('check_rfid_available') }}");
+                    const rfidStatus = await rfidCheck.json();
+                    
+                    if (rfidStatus.available) {
+                        // Store form data for later use
+                        window.registrationData = {
+                            username: formData.get('username'),
+                            userId: formData.get('user_id')
+                        };
+                        rfidChoiceModal.show();
+                    } else {
+                        // Complete registration without RFID
+                        document.getElementById('registrationStatus').innerHTML = 
+                            `<div class="alert alert-success">${result.message}<br>No RFID reader detected - registration completed without RFID.</div>`;
+                        registrationModal.show();
+                        setTimeout(() => window.location.reload(), 2000);
+                    }
+                } else {
+                    document.getElementById('registrationStatus').innerHTML = 
+                        `<div class="alert alert-danger">${result.message}</div>`;
+                    registrationModal.show();
+                }
+            } catch (error) {
+                document.getElementById('registrationStatus').innerHTML = 
+                    '<div class="alert alert-danger">Registration failed. Please try again.</div>';
+                registrationModal.show();
+            }
+        });
+        
+        // Function to skip RFID registration
+        window.skipRFIDRegistration = function() {
+            rfidChoiceModal.hide();
+            document.getElementById('registrationStatus').innerHTML = 
+                '<div class="alert alert-success">Registration completed without RFID.</div>';
+            registrationModal.show();
+            setTimeout(() => window.location.reload(), 2000);
+        };
+        
+        // Function to proceed with RFID registration
+        window.proceedWithRFID = function() {
+            rfidChoiceModal.hide();
+            faceRegistrationForm.style.display = 'none';
+            rfidRegistrationSection.style.display = 'block';
+            startRFIDRegistration(window.registrationData.username, window.registrationData.userId);
+        };
+        
+        // Function to handle RFID registration
+        async function startRFIDRegistration(username, userId) {
+            try {
+                let timeLeft = 15;
+                document.getElementById('rfidStatus').innerHTML = `
+                    <div class="alert alert-info">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Waiting for card swipe...</span>
+                        </div>
+                        <p class="mb-0">Please swipe your RFID card now... (${timeLeft} seconds remaining)</p>
+                    </div>
+                `;
+                
+                // Start countdown timer
+                const countdownInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft >= 0) {
+                        document.getElementById('rfidStatus').querySelector('p').textContent = 
+                            `Please swipe your RFID card now... (${timeLeft} seconds remaining)`;
+                    }
+                }, 1000);
+                
+                try {
+                    // Read RFID card
+                    const response = await fetch("{{ url_for('read_rfid') }}");
+                    const rfidData = await response.json();
+                    clearInterval(countdownInterval);
+
+                    if (!rfidData.success) {
+                        throw new Error(rfidData.error || "Failed to read RFID card");
+                    }
+
+
+                    // Register user with RFID
+                    const registerResponse = await fetch("{{ url_for('register_rfid') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            'rfid_id': rfidData.rfid_id,
+                            'user_id': userId,
+                            'name': username
+                        })
+                    });
+                    
+                    const result = await registerResponse.json();
+                    
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+                    
+                    document.getElementById('rfidStatus').innerHTML = `
+                        <div class="alert alert-success">
+                            ${result.message}
+                        </div>`;
+                    
+                    setTimeout(() => window.location.reload(), 2000);
+                    
+                } catch (error) {
+                    clearInterval(countdownInterval);
+                    throw error;
+                }
+            } catch (error) {
+                document.getElementById('rfidStatus').innerHTML = 
+                    `<div class="alert alert-danger">RFID registration failed: ${error.message}</div>`;
+            }
+        }
+
+        // RFID-only registration handling
+        const rfidOnlyModal = new bootstrap.Modal(document.getElementById('rfidOnlyModal'));
+        const rfidOnlyBtn = document.getElementById('rfidOnlyRegisterBtn');
+        const rfidOnlyForm = document.getElementById('rfidOnlyForm');
+        const rfidOnlyStatus = document.getElementById('rfidOnlyStatus');
+        const startRfidOnlyBtn = document.getElementById('startRfidOnlyRegistration');
+
+        rfidOnlyBtn.addEventListener('click', async () => {
+            // Check if RFID reader is available
+            try {
+                const rfidCheck = await fetch("{{ url_for('check_rfid_available') }}");
+                const rfidStatus = await rfidCheck.json();
+                
+                if (!rfidStatus.available) {
+                    document.getElementById('registrationStatus').innerHTML = 
+                        '<div class="alert alert-danger">No RFID reader detected. Please connect an RFID reader first.</div>';
+                    registrationModal.show();
+                    return;
+                }
+                
+                rfidOnlyModal.show();
+            } catch (error) {
+                document.getElementById('registrationStatus').innerHTML = 
+                    '<div class="alert alert-danger">Failed to check RFID reader status.</div>';
+                registrationModal.show();
+            }
+        });
+
+        startRfidOnlyBtn.addEventListener('click', async () => {
+            const formData = new FormData(rfidOnlyForm);
+            const username = formData.get('username');
+            const userId = formData.get('user_id');
+
+            if (!username || !userId) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            // Hide form and show RFID waiting status
+            rfidOnlyForm.style.display = 'none';
+            rfidOnlyStatus.style.display = 'block';
+            startRfidOnlyBtn.style.display = 'none';
+
+            try {
+                let timeLeft = 15;
+                rfidOnlyStatus.innerHTML = `
+                    <div class="alert alert-info">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Waiting for card swipe...</span>
+                        </div>
+                        <p class="mb-0">Please swipe your RFID card now... (${timeLeft} seconds remaining)</p>
+                    </div>
+                `;
+                
+                // Start countdown timer
+                const countdownInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft >= 0) {
+                        rfidOnlyStatus.querySelector('p').textContent = 
+                            `Please swipe your RFID card now... (${timeLeft} seconds remaining)`;
+                    }
+                }, 1000);
+                
+                try {
+                    // Read RFID card
+                    const response = await fetch("{{ url_for('read_rfid') }}");
+                    const rfidData = await response.json();
+                    clearInterval(countdownInterval);
+
+                    if (!rfidData.success) {
+                        throw new Error(rfidData.error || "Failed to read RFID card");
+                    }
+
+
+                    // Register user with RFID
+                    const registerResponse = await fetch("{{ url_for('register_rfid_only') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            'rfid_id': rfidData.rfid_id,
+                            'user_id': userId,
+                            'name': username
+                        })
+                    });
+
+                    const result = await registerResponse.json();
+                    
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+
+                    rfidOnlyModal.hide();
+                    document.getElementById('registrationStatus').innerHTML = `
+                        <div class="alert alert-success">
+                            ${result.message}
+                        </div>`;
+                    registrationModal.show();
+
+                    setTimeout(() => window.location.reload(), 2000);
+                } catch (error) {
+                    clearInterval(countdownInterval);
+                    throw error;
+                }
+            } catch (error) {
+                rfidOnlyStatus.innerHTML = 
+                    `<div class="alert alert-danger">RFID registration failed: ${error.message}</div>`;
+            }
+        });
+
+        // Add hover animation for buttons
+        document.querySelectorAll('.btn-scan').forEach(button => {
+            button.addEventListener('mouseenter', () => {
+                anime({
+                    targets: button,
+                    scale: 1.05,
+                    duration: 200,
+                    easing: 'easeOutQuad'
+                });
+            });
+
+            button.addEventListener('mouseleave', () => {
+                anime({
+                    targets: button,
+                    scale: 1,
+                    duration: 200,
+                    easing: 'easeOutQuad'
+                });
+            });
+        });
+ 
+        // Animate elements on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Animate cards
+            anime({
+                targets: '.card',
+                translateY: [50, 0],
+                opacity: [0, 1],
+                duration: 1000,
+                delay: anime.stagger(200),
+                easing: 'easeOutElastic(1, .8)'
+            });
+
+            // Animate table rows
+            anime({
+                targets: '.attendance-table tr',
+                translateX: [-50, 0],
+                opacity: [0, 1],
+                duration: 800,
+                delay: anime.stagger(100),
+                easing: 'easeOutQuad'
+            });
+        });
+
+        // RFID Attendance handling
+        const rfidAttendanceAlert = document.getElementById('rfidAttendanceAlert');
+        const rfidAttendanceBtn = document.getElementById('startRfidAttendanceBtn');
+        const rfidAttendanceStatus = document.getElementById('rfidAttendanceStatus');
+        const stopRfidAttendance = document.getElementById('stopRfidAttendance');
+        let isRfidAttendanceActive = false;
+
+        rfidAttendanceBtn.addEventListener('click', async () => {
+            try {
+                // Check if RFID reader is available
+                const rfidCheck = await fetch("{{ url_for('check_rfid_available') }}");
+                const rfidStatus = await rfidCheck.json();
+                
+                if (!rfidStatus.available) {
+                    document.getElementById('registrationStatus').innerHTML = 
+                        '<div class="alert alert-danger">No RFID reader detected. Please connect an RFID reader first.</div>';
+                    registrationModal.show();
+                    return;
+                }
+                
+                // Start RFID attendance mode
+                isRfidAttendanceActive = true;
+                rfidAttendanceAlert.style.display = 'block';
+                rfidAttendanceAlert.classList.add('show');
+                startRfidAttendanceMonitoring();
+                
+            } catch (error) {
+                document.getElementById('registrationStatus').innerHTML = 
+                    '<div class="alert alert-danger">Failed to start RFID attendance mode.</div>';
+                registrationModal.show();
+            }
+        });
+
+        stopRfidAttendance.addEventListener('click', () => {
+            isRfidAttendanceActive = false;
+            rfidAttendanceAlert.classList.remove('show');
+            setTimeout(() => {
+                rfidAttendanceAlert.style.display = 'none';
+                rfidAttendanceStatus.innerHTML = '';
+                // Refresh the sessions list and current session data
+                loadSessions();
+                loadSessionData('current');
+            }, 300);
+        });
+
+        // Load sessions list
+        loadSessions();
+        
+        // Function to load sessions
+        async function loadSessions() {
+            try {
+                const response = await fetch("{{ url_for('get_sessions') }}");
+                const data = await response.json();
+                
+                if (data.success) {
+                    const sessionsList = document.getElementById('sessionsList');
+                    sessionsList.innerHTML = `
+                        <li><a class="dropdown-item" href="#" data-session="current">Current Session</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                    `;
+                    
+                    if (data.sessions.length > 0) {
+                        data.sessions.forEach(session => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `
+                                <div class="dropdown-item d-flex justify-content-between align-items-center">
+                                    <a href="#" data-session="${session.filename}" class="text-decoration-none text-dark flex-grow-1">
+                                        ${session.display_name}
+                                    </a>
+                                    <button class="btn-download btn-sm ms-2" onclick="downloadSession('${session.filename}')">
+                                        <i class="material-icons" style="font-size: 16px;">download</i>
+                                    </button>
+                                </div>
+                            `;
+                            sessionsList.appendChild(li);
+                        });
+                    } else {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<a class="dropdown-item disabled" href="#">No previous sessions</a>`;
+                        sessionsList.appendChild(li);
+                    }
+                    
+                    // Add click events for session selection
+                    document.querySelectorAll('#sessionsList [data-session]').forEach(item => {
+                        item.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            if (!item.classList.contains('disabled')) {
+                                const sessionId = e.target.getAttribute('data-session');
+                                loadSessionData(sessionId);
+                                document.getElementById('currentSessionName').textContent = 
+                                    sessionId === 'current' ? 'Current Session' : e.target.textContent;
+                            }
+                        });
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading sessions:', error);
+            }
+        }
+        
+        // Function to load session data
+        async function loadSessionData(sessionId) {
+            try {
+                const url = sessionId === 'current' 
+                    ? "{{ url_for('get_attendance') }}"
+                    : `{{ url_for('get_attendance') }}?session_id=${sessionId}`;
+                    
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update session info
+                    document.getElementById('sessionInfo').innerHTML = `
+                        <i class="material-icons align-middle" style="font-size: 16px;">description</i>
+                        ${data.session_name}
+                    `;
+                    
+                    // Update attendance table
+                    const tbody = document.querySelector('.attendance-table tbody');
+                    if (data.attendance && data.attendance.length > 0) {
+                        tbody.innerHTML = data.attendance.map((entry, index) => `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td>${entry["User ID"]}</td>
+                                <td>${entry["Name"]}</td>
+                                <td>${entry["Time"]}</td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="text-center">No attendance recorded in this session.</td>
+                            </tr>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading session data:', error);
+            }
+        }
+        
+        // Update the startRfidAttendanceMonitoring function
+        async function startRfidAttendanceMonitoring() {
+            try {
+                // Start a new session
+                const sessionResponse = await fetch("{{ url_for('start_rfid_attendance') }}");
+                const sessionData = await sessionResponse.json();
+                
+                if (!sessionData.success) {
+                    throw new Error(sessionData.error || 'Failed to start RFID attendance session');
+                }
+
+                // Update UI to show active session
+                document.getElementById('currentSessionName').textContent = sessionData.session;
+                document.getElementById('sessionInfo').innerHTML = `
+                    <i class="material-icons align-middle" style="font-size: 16px;">description</i>
+                    ${sessionData.session}
+                `;
+
+                while (isRfidAttendanceActive) {
+                    try {
+                        // Read RFID card
+                        const response = await fetch("{{ url_for('read_rfid') }}");
+                        const rfidData = await response.json();
+
+                        if (rfidData.success) {
+                            // Mark attendance
+                            const attendanceResponse = await fetch("{{ url_for('rfid_scan') }}", {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/x-www-form-urlencoded',
+                                },
+                                body: new URLSearchParams({
+                                    'rfid_id': rfidData.rfid_id
+                                })
+                            });
+
+                            const result = await attendanceResponse.json();
+                            
+                            if (result.error) {
+                                rfidAttendanceStatus.innerHTML = `
+                                    <div class="alert alert-warning mb-0">
+                                        ${result.error}
+                                    </div>`;
+                            } else {
+                                rfidAttendanceStatus.innerHTML = `
+                                    <div class="alert alert-success mb-0">
+                                        ${result.message}
+                                    </div>`;
+                                
+                                // Update attendance table
+                                await loadSessionData('current');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error in RFID monitoring loop:', error);
+                        rfidAttendanceStatus.innerHTML = `
+                            <div class="alert alert-warning mb-0">
+                                Error reading card: ${error.message}
+                            </div>`;
+                    }
+
+                    // Wait before next read
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            } catch (error) {
+                console.error('Error in RFID attendance monitoring:', error);
+                rfidAttendanceStatus.innerHTML = `
+                    <div class="alert alert-danger mb-0">
+                        RFID attendance monitoring stopped: ${error.message}
+                    </div>`;
+                setTimeout(() => {
+                    isRfidAttendanceActive = false;
+                    rfidAttendanceAlert.classList.remove('show');
+                }, 2000);
+            }
+        }
+
+        // Add this to initialize the page
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load initial session data
+            loadSessionData('current');
+            // Load sessions list
+            loadSessions();
+        });
+
+        // Add download functionality
+        document.getElementById('downloadCurrentBtn').addEventListener('click', async () => {
+            const currentSession = document.getElementById('sessionInfo').textContent.trim();
+            if (currentSession) {
+                const filename = currentSession.includes('Session-') ? 
+                    currentSession.split('description')[1].trim() : 
+                    `Attendance-${new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: '2-digit' }).replace(/\//g, '_')}.csv`;
+                    
+                window.location.href = `{{ url_for('download_file', filename='') }}${filename}`;
+            }
+        });
+
+        // Add download session function
+        function downloadSession(filename) {
+            window.location.href = `{{ url_for('download_file', filename='') }}${filename}`;
+        }
+    });
+    </script>
+</body>
+</html>
