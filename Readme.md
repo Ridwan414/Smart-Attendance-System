@@ -54,7 +54,6 @@ python -m venv venv
 # Install dependencies
 pip install -r requirements.txt
 ```
-
 ### Linux/MacOS Setup
 
 ```bash
@@ -70,6 +69,7 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+
 ```
 
 ## Usage
