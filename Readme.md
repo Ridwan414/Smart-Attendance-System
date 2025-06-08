@@ -13,3 +13,9 @@ pip install -r requirements.txt
 ```
 pip install scikit-learn
 ```
+
+
+```
+py -3.12 -m venv venv 
+```
+
