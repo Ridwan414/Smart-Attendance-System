@@ -1,0 +1,296 @@
+/* style.css extracted from home.html */
+:root {
+    /* Soft, modern color palette */
+    --primary: #3b82f6;
+    --primary-light: #60a5fa;
+    --primary-dark: #2563eb;
+    --secondary: #64748b;
+    --success: #10b981;
+    --background: #f8fafc;
+    --card-bg: #ffffff;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --border-color: #e2e8f0;
+    --hover-bg: #f1f5f9;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+body {
+    background: var(--background);
+    min-height: 100vh;
+    padding: 2rem;
+    overflow-x: hidden;
+    color: var(--text-primary);
+}
+
+.header {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    padding: 2rem;
+    border-radius: 1rem;
+    margin-bottom: 2rem;
+    box-shadow: 0 10px 30px rgba(59, 130, 246, 0.15);
+    transform: translateY(0);
+    animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0px); }
+}
+
+.header h1 {
+    color: white;
+    font-size: 2.5rem;
+    font-weight: 700;
+    text-align: center;
+    margin: 0;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.card {
+    background: var(--card-bg);
+    border-radius: 1rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background: var(--primary);
+    color: white;
+    padding: 1.5rem;
+    border: none;
+}
+
+.btn-scan {
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    margin: 1rem 0;
+    width: 80%;
+    max-width: 400px;
+    color: white;
+}
+
+.btn-scan:hover {
+    background: linear-gradient(135deg, var(--primary-light), var(--primary));
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
+}
+
+.attendance-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1rem 0;
+}
+
+.attendance-table th {
+    background-color: var(--hover-bg);
+    color: white;
+    font-weight: 600;
+}
+
+.attendance-table th, 
+.attendance-table td {
+    padding: 1rem;
+    text-align: left;
+    color: white;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.attendance-table tr:hover {
+    background-color: var(--hover-bg);
+}
+
+.form-control {
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--border-color);
+    transition: all 0.2s ease;
+    color: var(--text-primary);
+}
+
+.form-control:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.form-label {
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.success-message {
+    background: var(--success);
+    color: white;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    margin: 1rem 0;
+    animation: slideIn 0.5s ease;
+    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.1);
+}
+
+.alert-danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border: none;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin: 1rem 0;
+    animation: slideIn 0.5s ease;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.material-icons {
+    vertical-align: middle;
+    margin-left: 0.5rem;
+}
+
+.stats {
+    color: white;
+    padding: 1rem;
+    border-radius: 0.75rem;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    margin-top: 1rem;
+}
+
+/* Accessibility improvements */
+.btn-scan:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background: #0f172a;
+        --card-bg: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #cbd5e1;
+        --border-color: #334155;
+        --hover-bg: #334155;
+    }
+
+    .card {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    .attendance-table th {
+        background-color: rgba(51, 65, 85, 0.5);
+    }
+}
+
+.alert-dismissible {
+    transition: opacity 0.3s ease-in-out;
+}
+
+.alert.fade {
+    opacity: 0;
+}
+
+.alert.fade.show {
+    opacity: 1;
+}
+
+#rfidAttendanceStatus .alert {
+    padding: 0.5rem 1rem;
+    margin: 0;
+}
+
+.btn-download {
+    background: linear-gradient(135deg, #10B981, #059669);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    color: white;
+    font-size: 0.875rem;
+}
+
+.btn-download:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
+}
+
+.footer {
+    background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+    color: #fff;
+    font-size: 1rem;
+    letter-spacing: 0.01em;
+    box-shadow: 0 -2px 12px rgba(59,130,246,0.08);
+    position: relative;
+    overflow: hidden;
+    z-index: 10;
+    animation: footerFadeIn 1.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.footer .container {
+    position: relative;
+    z-index: 2;
+}
+
+.footer .text-muted {
+    color: #e0e7ef !important;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.08);
+}
+
+.footer a {
+    color: #fff;
+    text-decoration: underline dotted;
+    transition: color 0.2s;
+}
+
+.footer a:hover {
+    color: var(--success);
+    text-decoration: underline solid;
+}
+
+@keyframes footerFadeIn {
+    from { opacity: 0; transform: translateY(40px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Animated gradient bar */
+.footer::before {
+    content: '';
+    position: absolute;
+    left: -50%;
+    bottom: 0;
+    width: 200%;
+    height: 6px;
+    background: linear-gradient(270deg, #10b981, #3b82f6, #2563eb, #10b981);
+    background-size: 600% 100%;
+    animation: footerBarMove 6s linear infinite;
+    z-index: 1;
+    opacity: 0.7;
+}
+
+@keyframes footerBarMove {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+}

@@ -1,0 +1,84 @@
+{% extends 'home.html' %}
+{% block content %}
+<style>
+    .btn-student {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 0.75rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        color: white;
+        width: 100%;
+        max-width: 400px;
+        margin-top: 1rem;
+    }
+    .btn-student:hover {
+        background: linear-gradient(135deg, #60a5fa, #3b82f6);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
+    }
+    .navbar {
+        background: #2563eb !important;
+        box-shadow: 0 2px 8px rgba(59,130,246,0.08);
+        margin-bottom: 0;
+    }
+    .navbar .nav-link, .navbar .navbar-brand {
+        color: #fff !important;
+        font-weight: 600;
+        font-size: 1.1rem;
+        letter-spacing: 0.02em;
+    }
+    .navbar .nav-link.active, .navbar .nav-link:focus, .navbar .nav-link:hover {
+        color: #10b981 !important;
+        background: none !important;
+    }
+    .navbar {
+        border-radius: 0 0 0.5rem 0.5rem;
+    }
+    .container {
+        margin-top: 2rem;
+    }
+</style>
+<div class="container mt-5">
+    <h2 class="text-center mb-4">Student Attendance Lookup</h2>
+    <form method="POST" class="mb-4 d-flex flex-column align-items-center">
+        <div class="mb-3 w-50">
+            <label for="student_name" class="form-label">Name</label>
+            <input type="text" class="form-control" id="student_name" name="student_name" value="{{ student_name }}" required>
+        </div>
+        <div class="mb-3 w-50">
+            <label for="student_id" class="form-label">User ID</label>
+            <input type="text" class="form-control" id="student_id" name="student_id" value="{{ student_id }}" required>
+        </div>
+        <button type="submit" class="btn btn-student">Show Attendance</button>
+    </form>
+    {% if attendance_records %}
+    <h4 class="mb-3">Attendance Records for {{ student_name }} (ID: {{ student_id }})</h4>
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Session File</th>
+                    <th>User ID</th>
+                    <th>Name</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in attendance_records %}
+                <tr>
+                    <td>{{ record.session }}</td>
+                    <td>{{ record.user_id }}</td>
+                    <td>{{ record.name }}</td>
+                    <td>{{ record.time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif student_name and student_id %}
+        <div class="alert alert-warning">No attendance records found for this student.</div>
+    {% endif %}
+</div>
+{% endblock %}

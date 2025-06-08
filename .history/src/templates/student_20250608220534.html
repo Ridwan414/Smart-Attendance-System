@@ -1,0 +1,44 @@
+{% extends 'home.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center mb-4">Student Attendance Lookup</h2>
+    <form method="POST" class="mb-4 d-flex flex-column align-items-center">
+        <div class="mb-3 w-50">
+            <label for="student_name" class="form-label">Name</label>
+            <input type="text" class="form-control" id="student_name" name="student_name" value="{{ student_name }}" required>
+        </div>
+        <div class="mb-3 w-50">
+            <label for="student_id" class="form-label">User ID</label>
+            <input type="text" class="form-control" id="student_id" name="student_id" value="{{ student_id }}" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Show Attendance</button>
+    </form>
+    {% if attendance_records %}
+    <h4 class="mb-3">Attendance Records for {{ student_name }} (ID: {{ student_id }})</h4>
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Session File</th>
+                    <th>User ID</th>
+                    <th>Name</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in attendance_records %}
+                <tr>
+                    <td>{{ record.session }}</td>
+                    <td>{{ record.user_id }}</td>
+                    <td>{{ record.name }}</td>
+                    <td>{{ record.time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif student_name and student_id %}
+        <div class="alert alert-warning">No attendance records found for this student.</div>
+    {% endif %}
+</div>
+{% endblock %}

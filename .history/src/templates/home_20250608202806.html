@@ -10,79 +10,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light mb-0" style="background: transparent !important; border-radius:0; box-shadow:none;">
-        <div class="container-fluid">
-            <!-- Remove the brand text -->
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto nav-animated">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('home') }}">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('student_attendance') }}">Student</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('teacher_panel') }}">Teacher</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-    <style>
-        .navbar {
-            background: transparent !important;
-            box-shadow: none !important;
-            border-radius: 0;
-            margin-bottom: 0;
-            padding-top: 0.5rem;
-            padding-bottom: 0.5rem;
-        }
-        .navbar .nav-link {
-            color: #2563eb !important;
-            font-weight: 600;
-            font-size: 1.1rem;
-            letter-spacing: 0.02em;
-            position: relative;
-            transition: color 0.3s cubic-bezier(.4,2,.6,1), background 0.3s;
-            overflow: hidden;
-        }
-        .navbar .nav-link::after {
-            content: '';
-            display: block;
-            width: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #3b82f6, #10b981);
-            transition: width 0.3s cubic-bezier(.4,2,.6,1);
-            position: absolute;
-            left: 0;
-            bottom: 0;
-        }
-        .navbar .nav-link:hover, .navbar .nav-link:focus {
-            color: #10b981 !important;
-            background: rgba(59,130,246,0.07);
-        }
-        .navbar .nav-link:hover::after, .navbar .nav-link:focus::after {
-            width: 100%;
-        }
-        .nav-animated .nav-link {
-            opacity: 0;
-            transform: translateY(-10px);
-            animation: navFadeIn 0.7s forwards;
-        }
-        .nav-animated .nav-link:nth-child(1) { animation-delay: 0.1s; }
-        .nav-animated .nav-link:nth-child(2) { animation-delay: 0.25s; }
-        .nav-animated .nav-link:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes navFadeIn {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-    </style>
-
     <div class="header">
         <h1>Smart Attendance System <i class="material-icons">verified_user</i></h1>
     </div>
@@ -108,15 +35,12 @@
     {% endif %}
 
     <div class="container">
-        <div class="row g-4 justify-content-center">
+        <div class="row g-4">
             <!-- Attendance Section -->
-            <div class="col-lg-7 d-flex align-items-stretch">
-                <div class="card h-100 w-100">
-                    <div class="card-header text-center">
-                        <h2 class="m-0 d-flex justify-content-center align-items-center gap-2">
-                            <i class="material-icons" style="font-size: 2rem;">today</i>
-                            Today's Attendance
-                        </h2>
+            <div class="col-lg-7">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h2 class="m-0">Attendance <i class="material-icons">assignment</i></h2>
                         <div class="d-flex justify-content-between align-items-center mt-2">
                             <div class="dropdown">
                                 <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" id="sessionDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -184,13 +108,10 @@
             </div>
 
             <!-- Registration Section -->
-            <div class="col-lg-5 d-flex align-items-stretch">
-                <div class="card h-100 w-100">
-                    <div class="card-header text-center">
-                        <h2 class="m-0 d-flex justify-content-center align-items-center gap-2">
-                            <i class="material-icons" style="font-size: 2rem;">person_add</i>
-                            Add New User
-                        </h2>
+            <div class="col-lg-5">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h2 class="m-0">Add New User <i class="material-icons">person_add</i></h2>
                     </div>
                     <div class="card-body">
                         <!-- Step 1: Face Registration -->
@@ -855,15 +776,5 @@
         }
     });
     </script>
-    <footer class="footer mt-5 py-3 bg-light border-top">
-        <div class="container text-center">
-            <span class="text-muted">
-                &copy; 2025 Smart Attendance System. All rights reserved.<br>
-                Developed by <strong>S.M. Shahriar</strong> | 
-                Email: <a href="mailto:sayeem26s@gmail.com">sayeem26s@gmail.com</a> | 
-                Phone: <a href="tel:01313264635">01313264635</a>
-            </span>
-        </div>
-    </footer>
 </body>
 </html>

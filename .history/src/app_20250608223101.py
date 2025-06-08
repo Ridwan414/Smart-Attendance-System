@@ -185,7 +185,7 @@ def create_new_session():
     if not os.path.exists(CURRENT_SESSION):
         with open(CURRENT_SESSION, mode="w", newline="") as file:
             writer = csv.writer(file)
-            writer.writerow(["User ID", "Name", "Time"])
+            writer.writerow(["User ID", "Name", "Time", "Timestamp"])
     return CURRENT_SESSION
 
 # Function to mark attendance (face or RFID, 5s cooldown per user)
@@ -201,17 +201,18 @@ def mark_attendance(name):
         if os.path.exists(CURRENT_SESSION):
             df = pd.read_csv(CURRENT_SESSION)
         else:
-            df = pd.DataFrame(columns=["User ID", "Name", "Time"])
+            df = pd.DataFrame(columns=["User ID", "Name", "Time", "Timestamp"])
         current_time = datetime.now().strftime("%H:%M:%S")
+        timestamp = time.time()
         user_id = name.split("_")[-1]
-        # Only mark attendance if not already present in this session
-        if user_id not in df["User ID"].values:
-            new_entry = pd.DataFrame({"User ID": [user_id], "Name": [name], "Time": [current_time]})
+        # Only allow attendance if not marked in the last 5 seconds
+        if not ((df["User ID"] == user_id) & (df["Timestamp"] >= timestamp - 5)).any():
+            new_entry = pd.DataFrame({"User ID": [user_id], "Name": [name], "Time": [current_time], "Timestamp": [timestamp]})
             df = pd.concat([df, new_entry], ignore_index=True)
             df.to_csv(CURRENT_SESSION, index=False)
             print(f"✅ Attendance marked for {name} (User ID: {user_id}) at {current_time}")
         else:
-            print(f"⚠️ {name} (User ID: {user_id}) is already marked present in this session.")
+            print(f"⏳ {name} (User ID: {user_id}) already marked in the last 5 seconds.")
     except Exception as e:
         print(f"❌ Error marking attendance: {e}")
 
@@ -429,18 +430,25 @@ def register_user():
 @app.route("/attendance/faces")
 def start_attendance():
     global known_face_encodings, known_face_names, CURRENT_SESSION
+
+    # Create a new session when starting attendance
     CURRENT_SESSION = create_new_session()
     print(f"📝 Starting new attendance session: {CURRENT_SESSION}")
+
+    # Reload faces in case they were cleared
     if not os.listdir(KNOWN_FACES_DIR):
         known_face_encodings, known_face_names = [], []
         print("⚠️ No registered faces. Only detecting unknown users.")
+
     try:
+        # Use Windows camera index
         cap = cv2.VideoCapture(WINDOWS_CAMERA_INDEX)
         if not cap.isOpened():
             print("❌ Failed to open camera")
             return redirect(url_for("home"))
-        observed_faces = {}
-        marked_attendance = set()
+        observed_faces = {}  # Track consistent recognition
+        marked_attendance = set()  # Track users who already had attendance marked
+        last_seen = {}
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -452,27 +460,29 @@ def start_attendance():
                 continue
             recognized_faces = recognize_faces(frame)
             current_time = time.time()
-            # --- MULTI-PERSON LOGIC ---
             for name, (x1, y1, x2, y2) in recognized_faces:
                 if not known_face_encodings:
-                    name = "Unknown"
+                    name = "Unknown" # Force unknown if no registered faces
                 if name != "Unknown":
                     if name in observed_faces:
-                        observed_faces[name]["frames"] += 1
+                        observed_faces[name]["count"] += 1
                         observed_faces[name]["last_seen"] = current_time
                     else:
-                        observed_faces[name] = {"frames": 1, "first_seen": current_time, "last_seen": current_time}
-                    # Require face to be present for at least 5 seconds (assuming ~20 fps)
-                    if (current_time - observed_faces[name]["first_seen"]) >= 5 and name not in marked_attendance:
+                        observed_faces[name] = {"count": 1, "last_seen": current_time}
+                    # Require face to be present for at least 5 seconds
+                    if observed_faces[name]["count"] >= 5 * 20 and name not in marked_attendance:  # 20 fps assumed
                         mark_attendance(name)
-                        marked_attendance.add(name)
+                        marked_attendance.add(name)  # Add to set of marked users
                         print(f"✅ {name} confirmed and attendance marked!")
+                # Set box color (Red for Unknown, Green for Recognized)
                 box_color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+                # Draw rectangle around the face
                 cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
                 cv2.putText(frame, name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, box_color, 2)
-            # --- END MULTI-PERSON LOGIC ---
+            # Display session info on the frame
             session_info = f"Session: {CURRENT_SESSION.split('/')[-1]}"
             cv2.putText(frame, session_info, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            # Display elapsed time
             elapsed = datetime.now() - SESSION_START_TIME
             elapsed_str = f"Time: {elapsed.seconds // 60}m {elapsed.seconds % 60}s"
             cv2.putText(frame, elapsed_str, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -482,9 +492,10 @@ def start_attendance():
                 print("🚪 Webcam window closed by user.")
                 break
             # Remove stale records after 15 seconds
-            observed_faces = {k: v for k, v in observed_faces.items() if current_time - v["last_seen"] < 15}
+            observed_faces = {k: v for k, v in observed_faces.items() if current_time - v["last_seen"] < 15} 
+            # Check for ESC key press (ASCII 27)
             key = cv2.waitKey(1) & 0xFF
-            if key == 27:
+            if key == 27:  # 27 is the ASCII code for ESC
                 print("🚪 ESC key pressed. Exiting webcam & saving attendance...")
                 break
         cap.release()
@@ -564,7 +575,7 @@ def rfid_scan():
         if os.path.exists(CURRENT_SESSION):
             df = pd.read_csv(CURRENT_SESSION)
         else:
-            df = pd.DataFrame(columns=["User ID", "Name", "Time"])
+            df = pd.DataFrame(columns=["User ID", "Name", "Time", "Timestamp"])
         timestamp = time.time()
         current_time = datetime.now().strftime("%H:%M:%S")
         # Only allow attendance if not marked in the last 5 seconds

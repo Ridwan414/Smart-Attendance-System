@@ -452,7 +452,6 @@ def start_attendance():
                 continue
             recognized_faces = recognize_faces(frame)
             current_time = time.time()
-            # --- MULTI-PERSON LOGIC ---
             for name, (x1, y1, x2, y2) in recognized_faces:
                 if not known_face_encodings:
                     name = "Unknown"
@@ -467,12 +466,15 @@ def start_attendance():
                         mark_attendance(name)
                         marked_attendance.add(name)
                         print(f"✅ {name} confirmed and attendance marked!")
+                # Set box color (Red for Unknown, Green for Recognized)
                 box_color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+                # Draw rectangle around the face
                 cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
                 cv2.putText(frame, name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, box_color, 2)
-            # --- END MULTI-PERSON LOGIC ---
+            # Display session info on the frame
             session_info = f"Session: {CURRENT_SESSION.split('/')[-1]}"
             cv2.putText(frame, session_info, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            # Display elapsed time
             elapsed = datetime.now() - SESSION_START_TIME
             elapsed_str = f"Time: {elapsed.seconds // 60}m {elapsed.seconds % 60}s"
             cv2.putText(frame, elapsed_str, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
@@ -483,8 +485,9 @@ def start_attendance():
                 break
             # Remove stale records after 15 seconds
             observed_faces = {k: v for k, v in observed_faces.items() if current_time - v["last_seen"] < 15}
+            # Check for ESC key press (ASCII 27)
             key = cv2.waitKey(1) & 0xFF
-            if key == 27:
+            if key == 27:  # 27 is the ASCII code for ESC
                 print("🚪 ESC key pressed. Exiting webcam & saving attendance...")
                 break
         cap.release()

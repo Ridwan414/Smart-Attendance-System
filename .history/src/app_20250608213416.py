@@ -5,7 +5,7 @@ import numpy as np
 import face_recognition
 import joblib
 import pandas as pd
-from flask import Flask, request, render_template, redirect, url_for, jsonify, send_file, flash
+from flask import Flask, request, render_template, redirect, url_for, jsonify, send_file
 from datetime import datetime
 from mtcnn import MTCNN
 import csv
@@ -181,37 +181,50 @@ def create_new_session():
     SESSION_START_TIME = datetime.now()
     session_id = SESSION_START_TIME.strftime("%m_%d_%y_%H_%M")
     CURRENT_SESSION = f"{DATA_DIR}/Session-{session_id}.csv"
-    # Create the session file with headers (add Timestamp for cooldown logic)
+    
+    # Create the session file with headers
     if not os.path.exists(CURRENT_SESSION):
         with open(CURRENT_SESSION, mode="w", newline="") as file:
             writer = csv.writer(file)
             writer.writerow(["User ID", "Name", "Time"])
+    
     return CURRENT_SESSION
 
-# Function to mark attendance (face or RFID, 5s cooldown per user)
+# Function to mark attendance
 def mark_attendance(name):
     if name == "Unknown":
         return
+
     try:
+        # Ensure we have an active session
         global CURRENT_SESSION
         if not CURRENT_SESSION:
             print("⚠️ No active session found. Creating a new one.")
             create_new_session()
+
         # Check if file exists and load existing data
         if os.path.exists(CURRENT_SESSION):
             df = pd.read_csv(CURRENT_SESSION)
         else:
             df = pd.DataFrame(columns=["User ID", "Name", "Time"])
+
         current_time = datetime.now().strftime("%H:%M:%S")
+
+        # Extract user ID from stored name format
         user_id = name.split("_")[-1]
-        # Only mark attendance if not already present in this session
+
+        # Check if already marked in this session
         if user_id not in df["User ID"].values:
             new_entry = pd.DataFrame({"User ID": [user_id], "Name": [name], "Time": [current_time]})
             df = pd.concat([df, new_entry], ignore_index=True)
+
+            # Save and flush data immediately
             df.to_csv(CURRENT_SESSION, index=False)
             print(f"✅ Attendance marked for {name} (User ID: {user_id}) at {current_time}")
+
         else:
             print(f"⚠️ {name} (User ID: {user_id}) is already marked present in this session.")
+
     except Exception as e:
         print(f"❌ Error marking attendance: {e}")
 
@@ -273,69 +286,11 @@ def home():
         current_session=CURRENT_SESSION.split("/")[-1] if CURRENT_SESSION else None
     )
 
-@app.route('/student', methods=['GET', 'POST'])
-def student_attendance():
-    attendance_records = []
-    student_name = ''
-    student_id = ''
-    if request.method == 'POST':
-        student_name = request.form.get('student_name', '').strip()
-        student_id = request.form.get('student_id', '').strip()
-        search_key = f"{student_name}_{student_id}"
-        # Search all session files for this student
-        for file in os.listdir(DATA_DIR):
-            if file.startswith('Session-') or file.startswith('Attendance-'):
-                file_path = os.path.join(DATA_DIR, file)
-                try:
-                    df = pd.read_csv(file_path)
-                    for _, row in df.iterrows():
-                        if str(row.get('User ID', '')) == str(student_id) or str(row.get('Name', '')) == search_key:
-                            attendance_records.append({
-                                'session': file,
-                                'user_id': row.get('User ID', ''),
-                                'name': row.get('Name', ''),
-                                'time': row.get('Time', '')
-                            })
-                except Exception as e:
-                    continue
-    return render_template('student.html', attendance_records=attendance_records, student_name=student_name, student_id=student_id)
 
-@app.route('/teacher', methods=['GET', 'POST'])
-def teacher_panel():
-    message = ''
-    if request.method == 'POST':
-        action = request.form.get('action')
-        if action == 'delete_day':
-            day = request.form.get('day')
-            # Delete all session files for the given day
-            deleted = 0
-            for file in os.listdir(DATA_DIR):
-                if file.startswith('Session-') and file[8:16] == day.replace('-', '_'):
-                    os.remove(os.path.join(DATA_DIR, file))
-                    deleted += 1
-            message = f"Deleted {deleted} session(s) for {day}."
-        elif action == 'delete_student':
-            student_id = request.form.get('student_id')
-            deleted = 0
-            for file in os.listdir(DATA_DIR):
-                if file.startswith('Session-') or file.startswith('Attendance-'):
-                    file_path = os.path.join(DATA_DIR, file)
-                    try:
-                        df = pd.read_csv(file_path)
-                        df = df[df['User ID'] != student_id]
-                        df.to_csv(file_path, index=False)
-                        deleted += 1
-                    except Exception as e:
-                        continue
-            message = f"Deleted student {student_id} from {deleted} file(s)."
-        elif action == 'delete_all':
-            deleted = 0
-            for file in os.listdir(DATA_DIR):
-                if file.startswith('Session-') or file.startswith('Attendance-'):
-                    os.remove(os.path.join(DATA_DIR, file))
-                    deleted += 1
-            message = f"Deleted all attendance files ({deleted})."
-    return render_template('teacher.html', message=message)
+
+
+
+
 
 @app.route("/add", methods=["POST"])
 def register_user():
@@ -388,12 +343,6 @@ def register_user():
             cv2.putText(display_frame, f"Image {captured+1} of {total}", (30, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2)
             cv2.imshow("Face Registration", display_frame)
             key = cv2.waitKey(1) & 0xFF
-            # Handle window close (cross button)
-            if cv2.getWindowProperty("Face Registration", cv2.WND_PROP_VISIBLE) < 1:
-                print("🚪 Webcam window closed by user.")
-                cap.release()
-                cv2.destroyAllWindows()
-                return jsonify({"success": False, "message": "Registration cancelled (window closed)."})
             if key == 27:
                 print("🚪 User cancelled registration.")
                 cap.release()
@@ -429,72 +378,85 @@ def register_user():
 @app.route("/attendance/faces")
 def start_attendance():
     global known_face_encodings, known_face_names, CURRENT_SESSION
+
+    # Create a new session when starting attendance
     CURRENT_SESSION = create_new_session()
     print(f"📝 Starting new attendance session: {CURRENT_SESSION}")
+
+    # Reload faces in case they were cleared
     if not os.listdir(KNOWN_FACES_DIR):
         known_face_encodings, known_face_names = [], []
         print("⚠️ No registered faces. Only detecting unknown users.")
+
     try:
+        # Use Windows camera index
         cap = cv2.VideoCapture(WINDOWS_CAMERA_INDEX)
         if not cap.isOpened():
             print("❌ Failed to open camera")
             return redirect(url_for("home"))
-        observed_faces = {}
-        marked_attendance = set()
+            
+        observed_faces = {}  # Track consistent recognition
+        marked_attendance = set()  # Track users who already had attendance marked
+
         while True:
             ret, frame = cap.read()
             if not ret:
-                # Try to reinitialize the camera if it fails
-                print("⚠️ Camera frame not received. Attempting to reinitialize...")
-                cap.release()
-                time.sleep(1)
-                cap = cv2.VideoCapture(WINDOWS_CAMERA_INDEX)
                 continue
+
             recognized_faces = recognize_faces(frame)
-            current_time = time.time()
-            # --- MULTI-PERSON LOGIC ---
             for name, (x1, y1, x2, y2) in recognized_faces:
                 if not known_face_encodings:
-                    name = "Unknown"
+                    name = "Unknown" # Force unknown if no registered faces
+
                 if name != "Unknown":
                     if name in observed_faces:
-                        observed_faces[name]["frames"] += 1
-                        observed_faces[name]["last_seen"] = current_time
+                        observed_faces[name]["count"] += 1
+                        observed_faces[name]["last_seen"] = time.time()
                     else:
-                        observed_faces[name] = {"frames": 1, "first_seen": current_time, "last_seen": current_time}
-                    # Require face to be present for at least 5 seconds (assuming ~20 fps)
-                    if (current_time - observed_faces[name]["first_seen"]) >= 5 and name not in marked_attendance:
+                        observed_faces[name] = {"count": 1, "last_seen": time.time()}
+
+                    # Ensure face is recognized for at least 10 frames before marking attendance
+                    if observed_faces[name]["count"] >= 10 and name not in marked_attendance:
                         mark_attendance(name)
-                        marked_attendance.add(name)
+                        marked_attendance.add(name)  # Add to set of marked users
                         print(f"✅ {name} confirmed and attendance marked!")
+
+                # Set box color (Red for Unknown, Green for Recognized)
                 box_color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+
+                # Draw rectangle around the face
                 cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
                 cv2.putText(frame, name, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, box_color, 2)
-            # --- END MULTI-PERSON LOGIC ---
+
+            # Display session info on the frame
             session_info = f"Session: {CURRENT_SESSION.split('/')[-1]}"
             cv2.putText(frame, session_info, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            
+            # Display elapsed time
             elapsed = datetime.now() - SESSION_START_TIME
             elapsed_str = f"Time: {elapsed.seconds // 60}m {elapsed.seconds % 60}s"
             cv2.putText(frame, elapsed_str, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
             cv2.imshow("Face Attendance System", frame)
-            # Handle window close (cross button)
-            if cv2.getWindowProperty("Face Attendance System", cv2.WND_PROP_VISIBLE) < 1:
-                print("🚪 Webcam window closed by user.")
-                break
+
             # Remove stale records after 15 seconds
-            observed_faces = {k: v for k, v in observed_faces.items() if current_time - v["last_seen"] < 15}
+            current_time = time.time()
+            observed_faces = {k: v for k, v in observed_faces.items() if current_time - v["last_seen"] < 15} 
+
+            # Check for ESC key press (ASCII 27)
             key = cv2.waitKey(1) & 0xFF
-            if key == 27:
+            if key == 27:  # 27 is the ASCII code for ESC
                 print("🚪 ESC key pressed. Exiting webcam & saving attendance...")
                 break
-        cap.release()
-        cv2.destroyAllWindows()
+
     except Exception as e:
         print(f"❌ Camera error: {e}")
     finally:
+        # Ensure camera is properly released and windows are closed
         if 'cap' in locals() and cap is not None:
             cap.release()
         cv2.destroyAllWindows()
+
     # Return to home page after attendance session ends
     return redirect(url_for("home"))
 
@@ -550,40 +512,47 @@ def register_rfid():
 
 @app.route("/rfid/scan", methods=["POST"])
 def rfid_scan():
+    """Handle RFID card scan"""
     rfid_id = request.form.get("rfid_id", "").strip()
+    
     if not rfid_id:
         return jsonify({"error": "Invalid scan! RFID ID is empty."})
+
     if rfid_id not in rfid_users:
         return jsonify({"error": "Unknown RFID card!"})
+
     user_data = rfid_users[rfid_id]
+    
     try:
+        # Ensure we have an active session
         global CURRENT_SESSION
         if not CURRENT_SESSION:
             print("⚠️ No active session found. Creating a new one.")
             create_new_session()
+
+        # Check if already marked in this session
         if os.path.exists(CURRENT_SESSION):
             df = pd.read_csv(CURRENT_SESSION)
-        else:
-            df = pd.DataFrame(columns=["User ID", "Name", "Time"])
-        timestamp = time.time()
-        current_time = datetime.now().strftime("%H:%M:%S")
-        # Only allow attendance if not marked in the last 5 seconds
-        if not ((df["User ID"] == user_data["user_id"]) & (df["Timestamp"] >= timestamp - 5)).any():
-            with open(CURRENT_SESSION, mode="a", newline="") as file:
-                writer = csv.writer(file)
-                writer.writerow([user_data["user_id"], user_data["name"], current_time, timestamp])
-            print(f"✅ Attendance marked for {user_data['name']}")
-            return jsonify({
-                "success": True,
-                "message": f"Attendance recorded for {user_data['name']}!",
-                "user": {
-                    "id": user_data["user_id"],
-                    "name": user_data["name"],
-                    "time": current_time
-                }
-            })
-        else:
-            return jsonify({"error": f"{user_data['name']} already marked in the last 5 seconds"})
+            if user_data["user_id"] in df["User ID"].values:
+                return jsonify({"error": f"{user_data['name']} already marked in this session"})
+
+        # Mark attendance
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        with open(CURRENT_SESSION, mode="a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([user_data["user_id"], user_data["name"], timestamp])
+
+        print(f"✅ Attendance marked for {user_data['name']}")
+        return jsonify({
+            "success": True,
+            "message": f"Attendance recorded for {user_data['name']}!",
+            "user": {
+                "id": user_data["user_id"],
+                "name": user_data["name"],
+                "time": timestamp
+            }
+        })
+
     except Exception as e:
         print(f"❌ Error recording attendance: {e}")
         return jsonify({"error": f"Failed to record attendance: {str(e)}"})

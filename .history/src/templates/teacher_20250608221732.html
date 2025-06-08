@@ -1,0 +1,42 @@
+{% extends 'home.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center mb-4">Teacher Panel</h2>
+    {% if message %}
+        <div class="alert alert-info text-center">{{ message }}</div>
+    {% endif %}
+    <form method="POST" class="mb-4">
+        <div class="row g-3 align-items-center mb-3">
+            <div class="col-auto">
+                <input type="radio" id="delete_day" name="action" value="delete_day" required>
+            </div>
+            <div class="col-auto">
+                <label for="day" class="form-label">Delete Attendance for Day (MM_DD_YY):</label>
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control" id="day" name="day" placeholder="e.g. 06_08_25">
+            </div>
+        </div>
+        <div class="row g-3 align-items-center mb-3">
+            <div class="col-auto">
+                <input type="radio" id="delete_student" name="action" value="delete_student">
+            </div>
+            <div class="col-auto">
+                <label for="student_id" class="form-label">Delete Student by User ID:</label>
+            </div>
+            <div class="col-auto">
+                <input type="text" class="form-control" id="student_id" name="student_id" placeholder="User ID">
+            </div>
+        </div>
+        <div class="row g-3 align-items-center mb-3">
+            <div class="col-auto">
+                <input type="radio" id="delete_all" name="action" value="delete_all">
+            </div>
+            <div class="col-auto">
+                <label class="form-label">Delete All Attendance Data</label>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-scan w-50"><i class="material-icons align-middle">delete</i> Execute</button>
+    </form>
+</div>
+{% endblock %}
