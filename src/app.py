@@ -152,26 +152,30 @@ if not known_face_encodings:
 def recognize_faces(frame):
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     detections = detector.detect_faces(rgb_frame)
-
     recognized_names = []
     for detection in detections:
         x, y, width, height = detection['box']
-        face_location = (y, x + width, y + height, x)
-
-        face_encoding = face_recognition.face_encodings(rgb_frame, [face_location])
-        if not face_encoding:
+        # Ensure bounding box is within frame
+        x, y = max(0, x), max(0, y)
+        x2, y2 = x + width, y + height
+        face_img = rgb_frame[y:y2, x:x2]
+        # Try to get face encoding from the detected region
+        encodings = face_recognition.face_encodings(rgb_frame, [(y, x2, y2, x)])
+        if not encodings:
+            # Try to rotate or slightly shift the box if no encoding found (for non-frontal faces)
+            for shift in [-10, 10]:
+                encodings = face_recognition.face_encodings(rgb_frame, [(max(0, y+shift), min(rgb_frame.shape[1], x2+shift), min(rgb_frame.shape[0], y2+shift), max(0, x+shift))])
+                if encodings:
+                    break
+        if not encodings:
             continue
-
-        encoding = face_encoding[0]
+        encoding = encodings[0]
         matches = face_recognition.compare_faces(known_face_encodings, encoding, tolerance=FACE_MATCH_THRESHOLD)
         name = "Unknown"
-
         if True in matches:
             match_index = np.argmin(face_recognition.face_distance(known_face_encodings, encoding))
             name = known_face_names[match_index]
-
-        recognized_names.append((name, (x, y, x + width, y + height)))
-
+        recognized_names.append((name, (x, y, x2, y2)))
     return recognized_names
 
 
