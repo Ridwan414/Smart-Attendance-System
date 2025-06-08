@@ -1,1 +1,59 @@
-venv
+# Ignore virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Ignore data folder
+data/
+
+# Ignore VSCode history or other editor history folders
+.history/
+
+# Byte-compiled / cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# macOS-specific
+.DS_Store
+
+# Windows-specific
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Python environment files
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# MyPy, Pyright, or other analysis tools
+.mypy_cache/
+.pyright/
+
+# Coverage reports
+.coverage
+htmlcov/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+
+# dotenv files
+.env
+.env.*
+
+# Ignore model files
+*.h5
+*.jobl*
