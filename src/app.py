@@ -355,23 +355,14 @@ def register_user():
     user_dir = os.path.join(KNOWN_FACES_DIR, f"{username}_{user_id}")
     os.makedirs(user_dir, exist_ok=True)
 
-    # Define the positions to capture
-    positions = [
-        ("Look Forward", "forward"),
-        ("Look Upward", "upward"),
-        ("Look Downward", "downward"),
-        ("Look Rightward", "rightward"),
-        ("Look Leftward", "leftward")
-    ]
-
     try:
         cap = cv2.VideoCapture(WINDOWS_CAMERA_INDEX)
         if not cap.isOpened():
             return jsonify({"success": False, "message": "Error: Could not access webcam!"})
 
-        print(f"📸 Starting face registration for {username} (User ID: {user_id})...")
+        print(f"📸 Starting automatic face registration for {username} (User ID: {user_id})...")
         captured = 0
-        total = len(positions)
+        total = 10
         while captured < total:
             ret, frame = cap.read()
             if not ret:
@@ -379,7 +370,6 @@ def register_user():
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             detections = detector.detect_faces(rgb_frame)
             display_frame = frame.copy()
-            h, w, _ = frame.shape
             face_found = False
             for detection in detections:
                 x, y, width, height = detection['box']
@@ -387,29 +377,22 @@ def register_user():
                 # Draw green bounding box for face
                 cv2.rectangle(display_frame, (x, y), (x2, y2), (0, 255, 0), 2)
                 face_found = True
-            # Show instruction
-            cv2.putText(display_frame, f"{positions[captured][0]} and press SPACE", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
-            cv2.putText(display_frame, f"Image {captured+1} of {total}", (30, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255,255,255), 2)
+            cv2.putText(display_frame, f"Capturing image {captured+1}/10", (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0,255,0), 2)
             cv2.imshow("Face Registration", display_frame)
+            # Only save if a face is detected
+            if face_found:
+                filename = f"{username}_{user_id}_{captured}.jpg"
+                cv2.imwrite(os.path.join(user_dir, filename), frame)
+                print(f"📸 Captured image {captured+1} ({filename})")
+                captured += 1
+                time.sleep(0.3)  # Short delay to avoid duplicate frames
+            # Allow user to cancel
             key = cv2.waitKey(1) & 0xFF
-            # Handle window close (cross button)
-            if cv2.getWindowProperty("Face Registration", cv2.WND_PROP_VISIBLE) < 1:
-                print("🚪 Webcam window closed by user.")
-                cap.release()
-                cv2.destroyAllWindows()
-                return jsonify({"success": False, "message": "Registration cancelled (window closed)."})
-            if key == 27:
-                print("🚪 User cancelled registration.")
+            if cv2.getWindowProperty("Face Registration", cv2.WND_PROP_VISIBLE) < 1 or key == 27:
+                print("🚪 Registration cancelled by user.")
                 cap.release()
                 cv2.destroyAllWindows()
                 return jsonify({"success": False, "message": "Registration cancelled."})
-            if key == 32 and face_found:  # SPACE bar
-                # Save the image
-                filename = f"{username}_{user_id}_{captured}.jpg"
-                cv2.imwrite(os.path.join(user_dir, filename), frame)
-                print(f"📸 Captured {positions[captured][0]} image ({filename})")
-                captured += 1
-                time.sleep(0.5)  # Prevent double capture
         cap.release()
         cv2.destroyAllWindows()
         # After capturing, update face_encodings.pkl
