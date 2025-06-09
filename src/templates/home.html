@@ -853,6 +853,20 @@
         function downloadSession(filename) {
             window.location.href = `{{ url_for('download_file', filename='') }}${filename}`;
         }
+
+        // Add polling for face attendance session
+        let faceAttendancePolling = null;
+        const faceSessionBtn = document.querySelector('a.btn-scan[href$="/attendance/faces"]');
+        if (faceSessionBtn) {
+            faceSessionBtn.addEventListener('click', function (e) {
+                // Start polling attendance table every 2 seconds
+                faceAttendancePolling = setInterval(() => {
+                    loadSessionData('current');
+                }, 2000);
+                // Allow navigation to backend (do not preventDefault)
+                // Polling will stop on page reload
+            });
+        }
     });
     </script>
     <footer class="footer mt-5 py-3 bg-light border-top">
