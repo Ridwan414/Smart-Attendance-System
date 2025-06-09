@@ -4,10 +4,24 @@ env/
 ENV/
 .venv/
 
-# Ignore data folder
-data/
+# Ignore data and face images
+src/data/
+static/faces/
 
-# Ignore VSCode history or other editor history folders
+# Ignore all CSV attendance/user files and logs in data
+src/data/*.csv
+src/data/*.log
+src/data/*.tmp
+src/data/*.bak
+
+# Ignore face encodings and model files
+face_encodings.pkl
+src/face_encodings.pkl
+*.pkl
+*.h5
+*.jobl*
+
+# Ignore VSCode/editor history
 .history/
 
 # Byte-compiled / cache files
@@ -54,6 +68,5 @@ coverage.xml
 .env
 .env.*
 
-# Ignore model files
-*.h5
-*.jobl*
+# Ignore ini files
+*.ini
