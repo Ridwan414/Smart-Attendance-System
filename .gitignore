@@ -6,7 +6,7 @@ ENV/
 
 # Ignore data and face images
 src/data/
-static/faces/
+src/static/faces/
 
 # Ignore all CSV attendance/user files and logs in data
 src/data/*.csv
